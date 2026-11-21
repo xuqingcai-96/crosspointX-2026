@@ -4,9 +4,13 @@
 
 这不是确定的“全国封禁”诊断：目前证据只能确认特定网络出口被阻止，无法从 403 页面判断是哪条防火墙规则。Sites 现有工具不能查看或修改 chatgpt.site 的入口规则。参见 [Cloudflare 对 403 的说明](https://developers.cloudflare.com/support/troubleshooting/http-status-codes/4xx-client-error/error-403/)。
 
-新部署使用同一套师生页面及 API，数据库改为服务器上的 SQLite，不向旧 chatgpt.site 转发 API。现有公开站保留可用。任何新地址都要让此前无法访问的同学实际验证，不能保证所有运营商、校园网及内置浏览器均可访问。
+新部署使用同一套师生页面及 API，不向旧 chatgpt.site 转发 API。Cloudflare 免费方案使用独立的 D1 数据库；独立 Node 服务则使用持久化 SQLite。现有公开站保留可用。任何新地址都要让此前无法访问的同学实际验证，不能保证所有运营商、校园网及内置浏览器均可访问。
 
-## 当前推荐：先用托管服务，免购域名
+## 当前推荐：Cloudflare 免费托管
+
+使用 Workers Free 和 D1 Free，获得不含 GPT 的 workers.dev 网址，保留共享课堂数据。具体操作见 [Cloudflare 部署说明](CLOUDFLARE.md)。新版源码位于 `codex/cloudflare-free`，包含双语界面、互评、界面精修和问答助手。原站数据不会自动迁入。
+
+## 备选：Render 付费托管，免购域名
 
 仓库根目录的 `render.yaml` 已准备好新加坡单实例 Node.js 服务、健康检查和 1 GB 持久磁盘。托管平台提供独立的 HTTPS 子域名，不需要先买域名或维护服务器。服务创建成功后平台才会分配真实地址，本文不预先编造网址。
 
@@ -15,7 +19,7 @@
 操作步骤：
 
 1. 打开 [Render 控制台](https://dashboard.render.com/)，由仓库所有者注册或登录并连接 GitHub。
-2. 新建 Blueprint，选择 `xuqingcai-96/crosspointX-2026`，分支选择 `codex/independent-hosting`，读取根目录 `render.yaml`。
+2. 新建 Blueprint，选择 `xuqingcai-96/crosspointX-2026`，分支选择 `codex/cloudflare-free`，读取根目录 `render.yaml`。
 3. 核对地区、单实例、持久盘及页面显示的费用，再决定创建。
 4. 部署成功后使用平台返回的 HTTPS 地址。`RENDER_EXTERNAL_URL` 会自动用于反向代理后的同源校验，无须硬编码域名。
 5. 按下方清单验收，再把新地址发给同学。自动部署已关闭，后续更新需要在控制台手动部署。
@@ -29,7 +33,7 @@
 在 Linux 服务器执行：
 
 ```sh
-git clone --branch codex/independent-hosting https://github.com/xuqingcai-96/crosspointX-2026.git
+git clone --branch codex/cloudflare-free https://github.com/xuqingcai-96/crosspointX-2026.git
 cd crosspointX-2026
 cp deployment/domain.env.example .env
 ```
