@@ -6,6 +6,8 @@
 
 本版以用户提供的 `did-it-submit-bilingual-source (4).zip` 为基线，保留中英双语与同伴互评，移除首页及师生端的设计说明、演示路线和示例答案弹窗。
 
+美化前版本保留在 Git 标签 `baseline-bilingual-no-design`。界面精修位于 `codex/ui-polish`，独立的 `dist/polish.css` 统一导航、卡片、表单、代码区和移动布局；师生与互评流程保持原样。
+
 部分网络会遇到 chatgpt.site 平台入口的 Cloudflare 403。已准备无需该域名的[独立部署方案](deployment/MIGRATION.md)，包括 Render 配置、Docker/HTTPS 配置和持久化数据库；新地址尚未创建。
 
 ## 师生操作
