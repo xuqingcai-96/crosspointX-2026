@@ -29,13 +29,15 @@ test('drafts stay teacher-only; students cannot publish or create assignments',a
   assert.equal((await f.call('/api/assignments/'+f.assignment.id+'/publish',{},f.teacher.token)).status,200);
   assert.equal((await f.call('/api/session',null,f.student.token)).body.assignments.length,1);f.DB.close();
 });
-test('submission is pending without grade; teacher verification creates final score',async()=>{
+test('reviewed scores and feedback stay private until individually published',async()=>{
   const f=await setup(),body=submission(f),submitted=await f.call('/api/assignments/'+f.assignment.id+'/submit',body,f.student.token);
   assert.equal(submitted.status,201);const s=submitted.body.submissions[0];assert.equal(s.status,'pending');assert.equal(s.score,null);
   assert.equal((await f.call('/api/submissions/'+s.id+'/review',{decision:'verified',score:96,checkedCode:true,checkedMaterial:true},f.student.token)).status,403);
   assert.equal((await f.call('/api/submissions/'+s.id+'/review',{decision:'verified',score:96,checkedCode:false,checkedMaterial:true},f.teacher.token)).status,400);
   const reviewed=await f.call('/api/submissions/'+s.id+'/review',{decision:'verified',score:96,checkedCode:true,checkedMaterial:true,feedback:'代码与材料一致，核实通过。'},f.teacher.token);assert.equal(reviewed.status,200);
-  const result=(await f.call('/api/session',null,f.student.token)).body.submissions[0];assert.equal(result.status,'verified');assert.equal(result.score,96);assert.ok(result.reviewed_at);assert.equal(result.code,body.code);f.DB.close();
+  let result=(await f.call('/api/session',null,f.student.token)).body.submissions[0];assert.equal(result.status,'verified');assert.equal(result.score,null);assert.equal(result.feedback,'');assert.equal(result.grade_published,false);assert.equal(reviewed.body.submissions[0].score,96);
+  const released=await f.call('/api/submissions/'+s.id+'/publish-grade',{confirm:true,score:1},f.teacher.token);assert.equal(released.status,200);
+  result=(await f.call('/api/session',null,f.student.token)).body.submissions[0];assert.equal(result.score,96);assert.equal(result.feedback,'代码与材料一致，核实通过。');assert.equal(result.grade_published,true);assert.ok(result.grade_published_at);assert.equal(result.code,body.code);f.DB.close();
 });
 test('return and resubmit preserve versions, reasons and old code',async()=>{
   const f=await setup();let r=await f.call('/api/assignments/'+f.assignment.id+'/submit',submission(f),f.student.token);const first=r.body.submissions[0];
@@ -90,4 +92,47 @@ test('transient D1 read failures retry without repeating any writes',async()=>{
   const DB={prepare(sql){const statement=f.DB.prepare(sql);const wrapped={bind(...args){statement.bind(...args);return wrapped;},first(){if(sql.includes('teacher_token_hash')&&failures<2){failures++;throw new Error('D1_ERROR: internal error; reference = synthetic-read-failure');}return statement.first();},all(){return statement.all();},run(){writes++;return statement.run();}};return wrapped;}};
   const response=await handleApi(new Request('https://classroom.example/api/session',{headers:{Authorization:'Bearer '+f.teacher.token}}),{DB});
   assert.equal(response.status,200);assert.equal(failures,2);assert.equal(writes,0);f.DB.close();
+});
+test('grade publication requires own teacher, reviewed work and an explicit checkbox',async()=>{
+  const f=await setup(),r=await f.call('/api/assignments/'+f.assignment.id+'/submit',submission(f),f.student.token),s=r.body.submissions[0];
+  const path='/api/submissions/'+s.id+'/publish-grade';
+  assert.equal((await f.call(path,{confirm:true},f.student.token)).status,403);
+  assert.equal((await f.call(path,{confirm:true},f.teacher.token)).status,409);
+  await f.call('/api/submissions/'+s.id+'/review',{decision:'verified',score:90,checkedCode:true,checkedMaterial:true},f.teacher.token);
+  assert.equal((await f.call(path,{confirm:false},f.teacher.token)).status,400);
+  const other=(await f.call('/api/classrooms',{teacherName:'其他教师',courseName:'另一个课堂'})).body;
+  assert.equal((await f.call(path,{confirm:true},other.token)).status,404);
+  assert.equal((await f.call(path,{confirm:true},f.teacher.token)).status,200);
+  assert.equal((await f.call(path,{confirm:true},f.teacher.token)).status,409);f.DB.close();
+});
+test('three reviewed students require three distinct publications',async()=>{
+  const f=await setup(),students=[f.student];
+  for(let i=2;i<=3;i++)students.push((await f.call('/api/classrooms/join',{code:f.teacher.room.code,name:'学生'+i,studentNumber:'2026000'+i})).body);
+  const records=[];
+  for(let i=0;i<students.length;i++){
+    const input=submission(f);input.filename='JS_L01_'+students[i].student.student_number+'.js';
+    const r=await f.call('/api/assignments/'+f.assignment.id+'/submit',input,students[i].token);assert.equal(r.status,201);
+    const s=r.body.submissions[0];records.push(s);
+    assert.equal((await f.call('/api/submissions/'+s.id+'/review',{decision:'verified',score:88+i,checkedCode:true,checkedMaterial:true,feedback:'第 '+(i+1)+' 位学生的核实反馈'},f.teacher.token)).status,200);
+  }
+  assert.equal((await f.call('/api/submissions/publish-grades',{ids:records.map(s=>s.id),confirm:true},f.teacher.token)).status,404);
+  for(let i=0;i<records.length;i++){
+    assert.equal((await f.call('/api/submissions/'+records[i].id+'/publish-grade',{confirm:true},f.teacher.token)).status,200);
+    for(let j=0;j<students.length;j++){
+      const s=(await f.call('/api/session',null,students[j].token)).body.submissions[0];
+      assert.equal(s.grade_published,j<=i);assert.equal(s.score,j<=i?88+j:null);assert.equal(s.feedback,j<=i?'第 '+(j+1)+' 位学生的核实反馈':'');
+    }
+  }
+  assert.equal((await f.DB.prepare('SELECT COUNT(*) AS n FROM grade_publications').first()).n,3);f.DB.close();
+});
+test('concurrent per-record grade releases create one audit entry',async()=>{
+  const f=await setup(),r=await f.call('/api/assignments/'+f.assignment.id+'/submit',submission(f),f.student.token),s=r.body.submissions[0];
+  await f.call('/api/submissions/'+s.id+'/review',{decision:'verified',score:80,checkedCode:true,checkedMaterial:true},f.teacher.token);
+  const path='/api/submissions/'+s.id+'/publish-grade';const result=await Promise.all([f.call(path,{confirm:true},f.teacher.token),f.call(path,{confirm:true},f.teacher.token)]);
+  assert.deepEqual(result.map(r=>r.status).sort(),[200,409]);assert.equal((await f.DB.prepare('SELECT COUNT(*) AS n FROM grade_publications').first()).n,1);f.DB.close();
+});
+test('previously visible legacy grades stay visible without backfilling data',async()=>{
+  const f=await setup(),r=await f.call('/api/assignments/'+f.assignment.id+'/submit',submission(f),f.student.token),s=r.body.submissions[0];
+  await f.DB.prepare("UPDATE submissions SET status='verified',score=96,feedback='此前已经发布',grade_release_required=0 WHERE id=?").bind(s.id).run();
+  const legacy=(await f.call('/api/session',null,f.student.token)).body.submissions[0];assert.equal(legacy.grade_published,true);assert.equal(legacy.score,96);assert.equal(legacy.feedback,'此前已经发布');f.DB.close();
 });

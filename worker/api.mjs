@@ -44,7 +44,12 @@ async function snapshot(db,session){
     FROM submissions s JOIN assignments a ON a.id = s.assignment_id JOIN students st ON st.id = s.student_id
     WHERE a.classroom_id = ? AND (? = 'teacher' OR s.student_id = ?) ORDER BY s.submitted_at DESC`,room.id,role,student?.id||'');
   const students=role==='teacher'?await rows(db,'SELECT id,name,student_number,created_at FROM students WHERE classroom_id = ? ORDER BY created_at',room.id):[];
-  for(const submission of submissions){submission.evaluation=JSON.parse(submission.evaluation_json);delete submission.evaluation_json;}
+  for(const submission of submissions){
+    submission.evaluation=JSON.parse(submission.evaluation_json);delete submission.evaluation_json;
+    // Existing grades stay visible; newly reviewed work requires an explicit per-record release.
+    submission.grade_published=submission.status==='verified'&&(submission.grade_release_required===0||!!submission.grade_published_at);
+    if(role==='student'&&submission.status==='verified'&&!submission.grade_published){submission.score=null;submission.feedback='';}
+  }
   return {room:roomView(room),role,student:student?{id:student.id,name:student.name,student_number:student.student_number}:null,assignments,submissions,students,serverTime:new Date().toISOString()};
 }
 export async function handleApi(request,env){
@@ -56,7 +61,7 @@ export async function handleApi(request,env){
       const origin=request.headers.get('Origin');
       if(origin&&origin!==url.origin)throw fail('不接受跨站写入。',403);
     }
-    if(path==='/api/health')return json({ok:true,version:2});
+    if(path==='/api/health')return json({ok:true,version:3});
     if(path==='/api/classrooms'&&request.method==='POST'){
       const input=await payload(request),name=String(input.teacherName||'').trim(),course=String(input.courseName||'').trim();
       if(name.length<1||name.length>30||course.length<2||course.length>60)throw fail('请填写教师称呼（1–30 字）和课程名称（2–60 字）。');
@@ -113,7 +118,7 @@ export async function handleApi(request,env){
       // The browser evaluation is supporting evidence. Only teacher review creates a final score.
       const evidence={id:evaluation.id,passed:true,results:evaluation.results.map((r,i)=>({...expectedTests[i],actual:r.actual,passed:true})),code};
       const submissionId=id('SUB'),version=(latest?.version||0)+1;
-      try{await exec(db,"INSERT INTO submissions (id,assignment_id,student_id,version,nonce,code,filename,note,evaluation_json,status,submitted_at) VALUES (?,?,?,?,?,?,?,?,?,'pending',?)",submissionId,assignment.id,session.student.id,version,input.nonce,code,input.filename,note,JSON.stringify(evidence),new Date().toISOString());}
+      try{await exec(db,"INSERT INTO submissions (id,assignment_id,student_id,version,nonce,code,filename,note,evaluation_json,status,submitted_at,grade_release_required) VALUES (?,?,?,?,?,?,?,?,?,'pending',?,1)",submissionId,assignment.id,session.student.id,version,input.nonce,code,input.filename,note,JSON.stringify(evidence),new Date().toISOString());}
       catch(error){if(String(error).includes('UNIQUE'))throw fail('提交状态已改变，请刷新查看最新记录。',409);throw error;}
       return json({submissionId,...await snapshot(db,session)},201);
     }
@@ -131,10 +136,26 @@ export async function handleApi(request,env){
       if(input.decision==='verified'&&(input.checkedCode!==true||input.checkedMaterial!==true))throw fail('请完成代码和材料两项核实。');
       const now=new Date().toISOString(),eventId=id('REV');
       const result=await db.batch([
-        db.prepare("UPDATE submissions SET status=?,score=?,feedback=?,reviewed_at=? WHERE id=? AND status='pending'").bind(input.decision,score,feedback,now,submission.id),
+        db.prepare("UPDATE submissions SET status=?,score=?,feedback=?,reviewed_at=?,grade_release_required=1,grade_published_at=NULL WHERE id=? AND status='pending'").bind(input.decision,score,feedback,now,submission.id),
         db.prepare('INSERT INTO review_events (id,submission_id,decision,score,feedback,created_at) SELECT ?,?,?,?,?,? WHERE changes() = 1').bind(eventId,submission.id,input.decision,score,feedback,now)
       ]);
       if(!result[0].meta.changes)throw fail('核实状态已改变，请刷新查看。',409);
+      return json(await snapshot(db,session));
+    }
+    const releaseMatch=path.match(/^\/api\/submissions\/([^/]+)\/publish-grade$/);
+    if(releaseMatch&&request.method==='POST'){
+      requireTeacher(session);const input=await payload(request);
+      const submission=await one(db,'SELECT s.* FROM submissions s JOIN assignments a ON a.id=s.assignment_id WHERE s.id=? AND a.classroom_id=?',releaseMatch[1],session.room.id);
+      if(!submission)throw fail('找不到本课堂的提交。',404);
+      if(input.confirm!==true)throw fail('请勾选本条成绩的发布确认后再发布。');
+      if(submission.status!=='verified')throw fail('请先核实通过该提交，再发布本条成绩。',409);
+      if(submission.grade_release_required===0||submission.grade_published_at)throw fail('本条成绩已经发布，请刷新查看。',409);
+      const now=new Date().toISOString();
+      const result=await db.batch([
+        db.prepare("UPDATE submissions SET grade_published_at=? WHERE id=? AND status='verified' AND grade_release_required=1 AND grade_published_at IS NULL").bind(now,submission.id),
+        db.prepare('INSERT INTO grade_publications (id,submission_id,published_at) SELECT ?,?,? WHERE changes()=1').bind(id('PUB'),submission.id,now)
+      ]);
+      if(!result[0].meta.changes)throw fail('该成绩的发布状态已改变，请刷新查看。',409);
       return json(await snapshot(db,session));
     }
     return json({error:'接口不存在。'},404);

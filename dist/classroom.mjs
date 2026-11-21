@@ -9,7 +9,7 @@ export function newDraft(assignment){return {code:PRESETS[assignment.preset].sta
 export function studentErrors(draft,assignment,room,student){
   const errors=[];
   if(!draft.evaluation?.passed||draft.evaluation.code!==draft.code)errors.push('当前代码尚未通过评测，或代码已改变。请对当前版本重新申请运行。');
-  if(draft.filename!==fileFor(assignment,student))errors.push('归档文件名应为 '+fileFor(assignment,student)+'。规则见教学资料中的归档补充说明。');
+  if(draft.filename!==fileFor(assignment,student))errors.push('归档文件名应为 '+fileFor(assignment,student)+'。请按提交页已列出的命名要求修改。');
   if(!draft.attachment||draft.attachment.content!==draft.code)errors.push('请提取或上传当前代码，附件必须与当前评测版本完全一致。');
   if(new TextEncoder().encode(draft.code).length>32768)errors.push('代码文件不能超过 32 KB。');
   if(draft.course.trim()!==room.course_name)errors.push('课程全称不匹配，应填写：'+room.course_name);
