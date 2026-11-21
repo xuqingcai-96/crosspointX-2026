@@ -1,4 +1,4 @@
-import {PRESETS,validateAssignment,testsFor} from '../dist/classroom.mjs';
+import {PRESETS,validateAssignment,testsFor,fileFor} from '../dist/classroom.mjs';
 
 const json=(body,status=200)=>new Response(JSON.stringify(body),{status,headers:{'Content-Type':'application/json; charset=utf-8','Cache-Control':'no-store','X-Content-Type-Options':'nosniff'}});
 const fail=(message,status=400)=>Object.assign(new Error(message),{status});
@@ -36,6 +36,85 @@ async function assignmentFor(db,session,assignmentId){
   const assignment=await one(db,'SELECT * FROM assignments WHERE id = ? AND classroom_id = ?',assignmentId,session.room.id);
   if(!assignment||(session.role==='student'&&assignment.status==='draft'))throw fail('找不到该课堂的作业。',404);
   return assignment;
+}
+async function peerReviewState(db, assignmentId, studentId) {
+  const own = await one(db, 'SELECT 1 AS submitted FROM submissions WHERE assignment_id = ? AND student_id = ? LIMIT 1', assignmentId, studentId);
+  if (!own) return {status: 'locked', submittedCount: 0, reviews: []};
+
+  const set = await one(db, `SELECT p.first_review, p.second_review, p.submitted_at,
+    first_work.code AS first_code, second_work.code AS second_code
+    FROM peer_review_sets p
+    JOIN submissions first_work ON first_work.id = p.first_submission_id
+    JOIN submissions second_work ON second_work.id = p.second_submission_id
+    WHERE p.assignment_id = ? AND p.reviewer_id = ?`, assignmentId, studentId);
+  if (set) {
+    return {
+      status: set.submitted_at ? 'submitted' : 'assigned',
+      submittedCount: set.submitted_at ? 2 : 0,
+      reviews: [
+        {slot: 1, code: set.first_code, draft: JSON.parse(set.first_review)},
+        {slot: 2, code: set.second_code, draft: JSON.parse(set.second_review)}
+      ]
+    };
+  }
+
+  const available = await one(db, `SELECT COUNT(*) AS count FROM submissions s
+    WHERE s.assignment_id = ? AND s.student_id <> ? AND s.status <> 'returned'
+      AND s.version = (SELECT MAX(latest.version) FROM submissions latest
+        WHERE latest.assignment_id = s.assignment_id AND latest.student_id = s.student_id)`, assignmentId, studentId);
+  return {status: available.count >= 2 ? 'ready' : 'waiting', submittedCount: 0, reviews: []};
+}
+async function handlePeerReview(request, db, session, assignment, action) {
+  const key = [assignment.id, session.student.id];
+  const current = await peerReviewState(db, ...key);
+  if (request.method === 'GET' && !action) return json(current);
+  if (request.method !== 'POST' || !action) return json({error: '不支持的请求方式。'}, 405);
+  if (current.status === 'locked') throw fail('请先正式提交自己的作业。', 409);
+
+  if (action === 'start') {
+    if (current.reviews.length) return json(current);
+    if (current.status !== 'ready') throw fail('同课堂的本次作业还没有两份可供互评的提交。', 409);
+    // Distribute two distinct, frozen submission versions in a single insert.
+    await exec(db, `INSERT INTO peer_review_sets (assignment_id, reviewer_id, first_submission_id, second_submission_id)
+      SELECT ?, ?, MIN(candidate.id), MAX(candidate.id) FROM (
+        SELECT s.id FROM submissions s
+        WHERE s.assignment_id = ? AND s.student_id <> ? AND s.status <> 'returned'
+          AND s.version = (SELECT MAX(latest.version) FROM submissions latest
+            WHERE latest.assignment_id = s.assignment_id AND latest.student_id = s.student_id)
+        ORDER BY RANDOM() LIMIT 2
+      ) candidate HAVING COUNT(*) = 2
+      ON CONFLICT(assignment_id, reviewer_id) DO NOTHING`, ...key, ...key);
+    const assigned = await peerReviewState(db, ...key);
+    if (!assigned.reviews.length) throw fail('可用作业已变化，请刷新互评。', 409);
+    return json(assigned);
+  }
+
+  if (!current.reviews.length) throw fail('请先领取两份互评作业。', 409);
+  if (action === 'submit') {
+    if (current.status === 'submitted') return json(current);
+    if ((await payload(request))?.confirm !== true) throw fail('请确认正式提交互评。');
+    const result = await exec(db, `UPDATE peer_review_sets SET submitted_at = ?
+      WHERE assignment_id = ? AND reviewer_id = ? AND submitted_at IS NULL
+        AND first_review IS NOT NULL AND second_review IS NOT NULL`, new Date().toISOString(), ...key);
+    const state = await peerReviewState(db, ...key);
+    if (!result.meta.changes && state.status !== 'submitted') throw fail('请先保存两份评分和评语。', 409);
+    return json(state);
+  }
+
+  if (current.status === 'submitted') throw fail('互评已提交，评分不可再修改。', 409);
+  const input = await payload(request);
+  if (![1, 2].includes(input?.slot)) throw fail('找不到这项互评作业。');
+  const scores = input.scores;
+  if (!Array.isArray(scores) || scores.length !== 3 || !scores.every(score => Number.isInteger(score) && score >= 1 && score <= 5)) {
+    throw fail('请为每个评分维度选择 1–5 分。');
+  }
+  const feedback = typeof input.feedback === 'string' ? input.feedback.trim() : '';
+  if (!feedback || feedback.length > 1000) throw fail('请填写 1–1000 个字符的评语。');
+  const column = input.slot === 1 ? 'first_review' : 'second_review';
+  const result = await exec(db, `UPDATE peer_review_sets SET ${column} = ?
+    WHERE assignment_id = ? AND reviewer_id = ? AND submitted_at IS NULL`, JSON.stringify({scores, feedback}), ...key);
+  if (!result.meta.changes) throw fail('互评状态已改变，请刷新查看。', 409);
+  return json(await peerReviewState(db, ...key));
 }
 async function snapshot(db,session){
   const {room,role,student}=session;
@@ -82,6 +161,12 @@ export async function handleApi(request,env){
     }
     const session=await authorize(request,db);
     if(path==='/api/session'&&request.method==='GET')return json(await snapshot(db,session));
+    const peerMatch = path.match(/^\/api\/assignments\/([^/]+)\/peer-reviews(?:\/(start|save|submit))?$/);
+    if (peerMatch) {
+      if (session.role !== 'student') throw fail('请使用学生身份查看同伴互评。', 403);
+      const assignment = await assignmentFor(db, session, peerMatch[1]);
+      return await handlePeerReview(request, db, session, assignment, peerMatch[2]);
+    }
     if(path==='/api/assignments'&&request.method==='POST'){
       requireTeacher(session);const input=validateAssignment(await payload(request)),assignmentId=id('TASK');
       await exec(db,"INSERT INTO assignments (id,classroom_id,title,description,preset,file_prefix,status,due_at,created_at) VALUES (?,?,?,?,?,?,'draft',?,?)",assignmentId,session.room.id,input.title,input.description,input.preset,input.filePrefix,input.dueAt,new Date().toISOString());
@@ -108,17 +193,19 @@ export async function handleApi(request,env){
       const latest=await one(db,'SELECT * FROM submissions WHERE assignment_id = ? AND student_id = ? ORDER BY version DESC LIMIT 1',assignment.id,session.student.id);
       if(latest&&latest.status!=='returned')throw fail('本次作业已提交，教师退回后才可以重新提交。',409);
       const code=String(input.code||''),note=String(input.note||'').trim(),evaluation=input.evaluation;
-      if(!code.trim()||new TextEncoder().encode(code).length>32768||note.length<12||note.length>2000)throw fail('请提供有效代码（不超过 32 KB）和 12–2000 字的归档说明。');
-      const expectedFilename=assignment.file_prefix+'_'+session.student.student_number+'.js';
-      if(input.filename!==expectedFilename)throw fail('归档文件名应为 '+expectedFilename+'。');
-      if(input.course!==session.room.course_name||input.task!==assignment.title)throw fail('课程或作业全称与发布内容不一致。');
-      if(!evaluation?.passed||evaluation.code!==code||typeof evaluation.id!=='string'||input.evaluationId!==evaluation.id)throw fail('评测记录与当前代码不一致。');
+      if(!code.trim()||new TextEncoder().encode(code).length>32768)throw fail('请提供有效代码（不超过 32 KB）。');
+      const expectedFilename=fileFor(assignment,session.student);
+      // Earlier clients may still send submission metadata. Preserve their notes and verify supplied fields.
+      if(note&&(note.length<12||note.length>2000))throw fail('提交说明应为 12–2000 个字符。');
+      if(input.filename!==undefined&&input.filename!==expectedFilename)throw fail('文件名应为 '+expectedFilename+'。');
+      if((input.course!==undefined&&input.course!==session.room.course_name)||(input.task!==undefined&&input.task!==assignment.title))throw fail('课程或作业全称与发布内容不一致。');
+      if(!evaluation?.passed||evaluation.code!==code||typeof evaluation.id!=='string'||!evaluation.id||(input.evaluationId!==undefined&&input.evaluationId!==evaluation.id))throw fail('评测记录与当前代码不一致。');
       const expectedTests=testsFor(assignment.preset);
       if(!Array.isArray(evaluation.results)||evaluation.results.length!==expectedTests.length||!evaluation.results.every((r,i)=>r.passed===true&&r.actual===expectedTests[i].expected))throw fail('请先通过当前作业的全部评测用例。');
       // The browser evaluation is supporting evidence. Only teacher review creates a final score.
       const evidence={id:evaluation.id,passed:true,results:evaluation.results.map((r,i)=>({...expectedTests[i],actual:r.actual,passed:true})),code};
       const submissionId=id('SUB'),version=(latest?.version||0)+1;
-      try{await exec(db,"INSERT INTO submissions (id,assignment_id,student_id,version,nonce,code,filename,note,evaluation_json,status,submitted_at,grade_release_required) VALUES (?,?,?,?,?,?,?,?,?,'pending',?,1)",submissionId,assignment.id,session.student.id,version,input.nonce,code,input.filename,note,JSON.stringify(evidence),new Date().toISOString());}
+      try{await exec(db,"INSERT INTO submissions (id,assignment_id,student_id,version,nonce,code,filename,note,evaluation_json,status,submitted_at,grade_release_required) VALUES (?,?,?,?,?,?,?,?,?,'pending',?,1)",submissionId,assignment.id,session.student.id,version,input.nonce,code,expectedFilename,note,JSON.stringify(evidence),new Date().toISOString());}
       catch(error){if(String(error).includes('UNIQUE'))throw fail('提交状态已改变，请刷新查看最新记录。',409);throw error;}
       return json({submissionId,...await snapshot(db,session)},201);
     }
@@ -133,7 +220,7 @@ export async function handleApi(request,env){
       if(feedback.length>2000)throw fail('反馈不能超过 2000 字。');
       if(input.decision==='returned'&&feedback.length<4)throw fail('退回时请填写至少 4 个字符的修改原因。');
       if(input.decision==='verified'&&(!Number.isInteger(score)||score<0||score>100))throw fail('成绩必须为 0–100 的整数。');
-      if(input.decision==='verified'&&(input.checkedCode!==true||input.checkedMaterial!==true))throw fail('请完成代码和材料两项核实。');
+      if(input.decision==='verified'&&(input.checkedCode!==true||input.checkedMaterial!==true))throw fail('请完成代码和提交记录两项核实。');
       const now=new Date().toISOString(),eventId=id('REV');
       const result=await db.batch([
         db.prepare("UPDATE submissions SET status=?,score=?,feedback=?,reviewed_at=?,grade_release_required=1,grade_published_at=NULL WHERE id=? AND status='pending'").bind(input.decision,score,feedback,now,submission.id),

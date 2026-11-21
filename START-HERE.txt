@@ -1,0 +1,17 @@
+交了没？｜Did It Submit?
+
+这是中英双语源码。包括教师发布作业、学生评测后直接提交、同伴互评，以及成绩发布。
+
+1. 安装 Node.js 22.13 或更新版本，推荐 Node.js 24。
+2. 用 VS Code 打开解压后的 did-it-submit 文件夹。
+3. 在终端运行 npm start，用浏览器打开终端显示的 Local 地址。
+4. 修改后运行 npm test 检查功能，运行 npm run build 生成部署产物。
+
+主要文件
+- dist/app.js：页面和交互
+- dist/i18n.mjs：中英文界面文案
+- dist/styles.css：界面样式
+- worker/api.mjs：课堂、提交、互评与成绩 API
+- README.md：项目结构与师生操作
+
+本地启动会自动建立新的课堂数据库。若要发布到同一个线上站点，需要该站点的编辑权限。

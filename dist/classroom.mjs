@@ -5,19 +5,7 @@ export const PRESETS = {
 };
 export const testsFor = preset => PRESETS[preset].tests.map(([args,expected])=>({args,expected}));
 export const fileFor = (assignment,student) => `${assignment.file_prefix}_${student.student_number}.js`;
-export function newDraft(assignment){return {code:PRESETS[assignment.preset].starter,evaluation:null,history:[],logs:[],filename:'',course:'',task:'',evaluationId:'',note:'',attachment:null,nonce:null,stats:{clicks:0,applications:0,waitSeconds:0,confirmations:0,errors:0}};}
-export function studentErrors(draft,assignment,room,student){
-  const errors=[];
-  if(!draft.evaluation?.passed||draft.evaluation.code!==draft.code)errors.push('当前代码尚未通过评测，或代码已改变。请对当前版本重新申请运行。');
-  if(draft.filename!==fileFor(assignment,student))errors.push('归档文件名应为 '+fileFor(assignment,student)+'。请按提交页已列出的命名要求修改。');
-  if(!draft.attachment||draft.attachment.content!==draft.code)errors.push('请提取或上传当前代码，附件必须与当前评测版本完全一致。');
-  if(new TextEncoder().encode(draft.code).length>32768)errors.push('代码文件不能超过 32 KB。');
-  if(draft.course.trim()!==room.course_name)errors.push('课程全称不匹配，应填写：'+room.course_name);
-  if(draft.task.trim()!==assignment.title)errors.push('作业全称不匹配，应填写：'+assignment.title);
-  if(draft.evaluationId.trim()!==draft.evaluation?.id)errors.push('请抄写当前评测结果编号：'+(draft.evaluation?.id||'尚未评测'));
-  if(draft.note.trim().length<12)errors.push('归档说明至少需要 12 个字符。');
-  return errors;
-}
+export function newDraft(assignment){return {code:PRESETS[assignment.preset].starter,evaluation:null,history:[],logs:[],nonce:null,stats:{clicks:0,applications:0,waitSeconds:0,errors:0}};}
 export function validateAssignment(input){
   const title=String(input.title||'').trim(),description=String(input.description||'').trim();
   const prefix=String(input.filePrefix||'').trim();

@@ -1,7 +1,7 @@
 import {readFile,writeFile,mkdir} from 'node:fs/promises';
 import path from 'node:path';
 const root=new URL('../',import.meta.url);
-const files=['index.html','app.js','styles.css','core.mjs','classroom.mjs','runner.worker.js','favicon.svg'];
+const files=['index.html','app.js','styles.css','i18n.mjs','core.mjs','classroom.mjs','runner.worker.js','favicon.svg'];
 const assets={};
 const mime={html:'text/html; charset=utf-8',js:'text/javascript; charset=utf-8',mjs:'text/javascript; charset=utf-8',css:'text/css; charset=utf-8',svg:'image/svg+xml'};
 for(const file of files)assets['/'+file]={body:await readFile(new URL('dist/'+file,root),'utf8'),type:mime[file.split('.').pop()]};

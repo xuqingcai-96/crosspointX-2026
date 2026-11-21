@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {handleApi} from '../worker/api.mjs';
 import {openLocalDatabase} from '../worker/local-db.mjs';
-import {PRESETS,testsFor,newDraft,fileFor,studentErrors} from '../dist/classroom.mjs';
+import {PRESETS,testsFor} from '../dist/classroom.mjs';
 
 function fixture(){
   const DB=openLocalDatabase();
@@ -82,10 +82,21 @@ test('review concurrency creates exactly one decision and audit event',async()=>
   const responses=await Promise.all([f.call('/api/submissions/'+s.id+'/review',payload,f.teacher.token),f.call('/api/submissions/'+s.id+'/review',payload,f.teacher.token)]);
   assert.deepEqual(responses.map(r=>r.status).sort(),[200,409]);assert.equal((await f.DB.prepare('SELECT COUNT(*) AS n FROM review_events').first()).n,1);f.DB.close();
 });
-test('client material validation follows teacher task and current student',()=>{
-  const a={id:'task',title:'自定义作业',preset:'max',file_prefix:'MAX_02'},student={student_number:'ABC123'},room={course_name:'编程实践'};
-  const d=newDraft(a);assert.ok(studentErrors(d,a,room,student).length>0);d.code=PRESETS.max.solution;d.evaluation={passed:true,id:'EV-1',code:d.code};Object.assign(d,{filename:fileFor(a,student),attachment:{content:d.code},course:room.course_name,task:a.title,evaluationId:'EV-1',note:'本次已完成最大值函数与边界测试'});assert.deepEqual(studentErrors(d,a,room,student),[]);
-  d.code+='\n// change';assert.ok(studentErrors(d,a,room,student).some(e=>e.includes('当前代码')));
+test('students can submit tested code directly and receive a receipt', async t => {
+  const f = await setup();
+  t.after(() => f.DB.close());
+  const {nonce, code, evaluation} = submission(f);
+  const path = '/api/assignments/' + f.assignment.id;
+  const stale = await f.call(path + '/submit', {nonce, code: code + '\n// changed', evaluation}, f.student.token);
+  assert.equal(stale.status, 400);
+  const submitted = await f.call(path + '/submit', {nonce, code, evaluation}, f.student.token);
+  assert.equal(submitted.status, 201);
+  const [record] = submitted.body.submissions;
+  assert.equal(record.id, submitted.body.submissionId);
+  assert.equal(record.filename, 'JS_L01_20260001.js');
+  assert.equal(record.code, code);
+  assert.equal(record.note, '');
+  assert.equal((await f.call(path + '/peer-reviews', null, f.student.token)).body.status, 'waiting');
 });
 test('transient D1 read failures retry without repeating any writes',async()=>{
   const f=await setup();let failures=0,writes=0;
@@ -135,4 +146,64 @@ test('previously visible legacy grades stay visible without backfilling data',as
   const f=await setup(),r=await f.call('/api/assignments/'+f.assignment.id+'/submit',submission(f),f.student.token),s=r.body.submissions[0];
   await f.DB.prepare("UPDATE submissions SET status='verified',score=96,feedback='此前已经发布',grade_release_required=0 WHERE id=?").bind(s.id).run();
   const legacy=(await f.call('/api/session',null,f.student.token)).body.submissions[0];assert.equal(legacy.grade_published,true);assert.equal(legacy.score,96);assert.equal(legacy.feedback,'此前已经发布');f.DB.close();
+});
+
+test('peer reviews unlock after submission, assign anonymous classmates, and finalize drafts together', async t => {
+  const f = await setup();
+  t.after(() => f.DB.close());
+  const assignmentPath = '/api/assignments/' + f.assignment.id;
+  const path = assignmentPath + '/peer-reviews';
+  const read = () => f.call(path, null, f.student.token);
+  const write = (action, body = {}) => f.call(path + '/' + action, body, f.student.token);
+  assert.equal((await read()).body.status, 'locked');
+  assert.equal((await write('start')).status, 409);
+  assert.equal((await f.call(path, null, f.teacher.token)).status, 403);
+  assert.equal((await f.call(assignmentPath + '/submit', submission(f), f.student.token)).status, 201);
+  assert.equal((await read()).body.status, 'waiting');
+
+  const peerCodes = [];
+  for (const [name, studentNumber, expression] of [
+    ['同学乙', '20260002', 'b + a'],
+    ['同学丙', '20260003', 'Number(a) + Number(b)']
+  ]) {
+    const {body: peer} = await f.call('/api/classrooms/join', {code: f.teacher.room.code, name, studentNumber});
+    const code = 'function solve(a, b) { return ' + expression + '; }';
+    const work = submission(f);
+    const response = await f.call(assignmentPath + '/submit', {
+      ...work, code, filename: 'JS_L01_' + studentNumber + '.js',
+      evaluation: {...work.evaluation, code}
+    }, peer.token);
+    assert.equal(response.status, 201);
+    peerCodes.push(code);
+  }
+  assert.equal((await read()).body.status, 'ready');
+
+  const [assigned, retry] = await Promise.all([write('start'), write('start')]);
+  assert.equal(assigned.status, 200);
+  assert.deepEqual(assigned.body, retry.body);
+  assert.deepEqual(assigned.body.reviews.map(review => review.code).sort(), peerCodes.sort());
+  assert.deepEqual(Object.keys(assigned.body.reviews[0]).sort(), ['code', 'draft', 'slot']);
+  assert.equal((await write('submit', {confirm: true})).status, 409);
+  assert.equal((await write('save', {slot: 1, scores: [6, 5, 5], feedback: '评分超出范围'})).status, 400);
+  assert.equal((await write('save', {slot: 1, scores: [4, 5, 5], feedback: '   '})).status, 400);
+
+  const scores = [4, 5, 5];
+  for (const [slot, feedback] of [[1, '可以把代码意图写成注释。'], [2, '函数简洁，建议说明输入范围。']]) {
+    const saved = await write('save', {slot, scores, feedback});
+    assert.equal(saved.status, 200);
+    assert.equal(saved.body.submittedCount, 0);
+    assert.deepEqual(saved.body.reviews[slot - 1].draft, {scores, feedback});
+  }
+  assert.equal((await read()).body.reviews.filter(review => review.draft).length, 2);
+  assert.equal((await write('submit')).status, 400);
+  const completed = await write('submit', {confirm: true});
+  assert.equal(completed.status, 200);
+  assert.equal(completed.body.submittedCount, 2);
+  assert.equal(completed.body.status, 'submitted');
+  assert.deepEqual((await read()).body, completed.body);
+  assert.deepEqual((await write('submit', {confirm: true})).body, completed.body);
+  assert.equal((await write('save', {slot: 1, scores, feedback: '提交后再改'})).status, 409);
+  const ownSubmission = (await f.call('/api/session', null, f.student.token)).body.submissions[0];
+  assert.equal(ownSubmission.status, 'pending');
+  assert.equal(ownSubmission.score, null);
 });
