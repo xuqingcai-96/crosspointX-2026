@@ -1,0 +1,9 @@
+.git
+.openai
+.local-data
+outputs
+node_modules
+dist/server
+dist/.openai
+*.tar.gz
+.env

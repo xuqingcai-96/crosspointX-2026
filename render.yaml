@@ -1,0 +1,25 @@
+# Paid service + persistent disk. Review the displayed cost before creation.
+services:
+  - type: web
+    name: course-pending-crosspoint
+    runtime: node
+    region: singapore
+    plan: 0.5c-512mb
+    numInstances: 1
+    autoDeployTrigger: off
+    buildCommand: node --check server.mjs
+    startCommand: node server.mjs
+    healthCheckPath: /api/health
+    envVars:
+      - key: NODE_VERSION
+        value: "24"
+      - key: HOST
+        value: 0.0.0.0
+      - key: NODE_ENV
+        value: production
+      - key: DATA_DIR
+        value: /var/data
+    disk:
+      name: classroom-data
+      mountPath: /var/data
+      sizeGB: 1

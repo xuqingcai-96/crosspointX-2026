@@ -7,3 +7,4 @@ Thumbs.db
 .local-data/
 dist/server/
 dist/.openai/
+.env

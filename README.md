@@ -4,6 +4,8 @@
 
 在线地址：https://course-not-submitted-ux.xuqingcai96.chatgpt.site
 
+部分网络会遇到 chatgpt.site 平台入口的 Cloudflare 403。已准备无需该域名的[独立部署方案](deployment/MIGRATION.md)，包括 Render 配置、Docker/HTTPS 配置和持久化数据库；新地址尚未创建。
+
 ## 师生操作
 
 1. 教师在首页创建课堂，进入「课堂与身份」保留教师恢复口令。
@@ -39,7 +41,7 @@ node scripts/build.mjs
 - `dist/`：手写前端资源，使用浏览器 Worker 运行学生 JavaScript。
 - `dist/classroom.mjs`：评测模板、学生材料校验、教师任务校验。
 - `worker/api.mjs`：同源 API、教师和学生身份校验、课堂隔离、提交版本、核实与评分。
-- `worker/local-db.mjs`：本地 SQLite 的 D1 兼容层，仅用于本地开发和测试。
+- `worker/local-db.mjs`：SQLite 的 D1 兼容层，用于本地开发、测试及独立 Node 服务部署。
 - `drizzle/0000_classroom.sql`：云端 D1 结构迁移；请求处理中不创建表。
 - `scripts/build.mjs`：将 API 与静态资源打包为单个自包含 `dist/server/index.js`，适用于 Cloudflare Worker / Sites。
 
