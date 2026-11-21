@@ -1,16 +1,20 @@
 {
-  "name": "did-it-submit",
-  "main": "dist/server/index.js",
-  "compatibility_date": "2026-11-21",
-  "workers_dev": true,
-  "send_metrics": false,
-  "keep_vars": true,
-  "build": { "command": "node scripts/build.mjs" },
-  "d1_databases": [
-    {
-      "binding": "DB",
-      "database_name": "did-it-submit-classroom",
-      "migrations_dir": "drizzle"
-    }
-  ]
+	"name": "did-it-submit",
+	"main": "dist/server/index.js",
+	"compatibility_date": "2026-11-21",
+	"workers_dev": true,
+	"preview_urls": false,
+	"send_metrics": false,
+	"keep_vars": true,
+	"build": {
+		"command": "node scripts/build.mjs"
+	},
+	"d1_databases": [
+		{
+			"binding": "DB",
+			"database_name": "did-it-submit-classroom",
+			"migrations_dir": "drizzle",
+			"database_id": "e0caef12-e215-4c08-93a6-8f6ca2eb0b47"
+		}
+	]
 }

@@ -2,7 +2,9 @@
 
 交了没？（Did It Submit?）是中英双语的 Reverse UX Challenge 原型，支持教师发布作业、学生提交和同伴互评。独立赛事作品，与头歌平台无隶属关系。
 
-在线地址：https://course-not-submitted-ux.xuqingcai96.chatgpt.site
+在线地址：https://did-it-submit.xuqingcai96.workers.dev
+
+原 Sites 地址保留：https://course-not-submitted-ux.xuqingcai96.chatgpt.site 。两站数据库独立，旧课堂不会自动出现在新站。
 
 本版以用户提供的 `did-it-submit-bilingual-source (4).zip` 为基线，保留中英双语与同伴互评，移除首页及师生端的设计说明、演示路线和示例答案弹窗。
 
@@ -10,7 +12,7 @@
 
 右下角新增“问一问”：未配置模型时提供明确标注的内置操作帮助，配置 Dify 后可使用 AI 问答。详见[接入说明](deployment/ASSISTANT.md)。API Key 仅保存在服务端；本版尚未配置真实模型。页脚已移除赛事原型与平台隶属提示文案。
 
-部分网络会遇到 chatgpt.site 平台入口的 Cloudflare 403。当前优先使用 [Cloudflare 免费独立部署](deployment/CLOUDFLARE.md)，保留 D1 持久化数据并使用平台分配的 workers.dev 网址。另有 [Render / Docker 部署方案](deployment/MIGRATION.md)。实际新地址需在部署成功后确认。
+部分网络会遇到 chatgpt.site 平台入口的 Cloudflare 403。已完成 [Cloudflare 免费独立部署](deployment/CLOUDFLARE.md)，使用独立 D1 持久化数据库和平台分配的 workers.dev 网址。另有 [Render / Docker 部署方案](deployment/MIGRATION.md)。新网址仍需在比赛现场及目标网络实测。
 
 ## 师生操作
 
