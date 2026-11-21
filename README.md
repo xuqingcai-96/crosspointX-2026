@@ -10,7 +10,7 @@
 
 右下角新增“问一问”：未配置模型时提供明确标注的内置操作帮助，配置 Dify 后可使用 AI 问答。详见[接入说明](deployment/ASSISTANT.md)。API Key 仅保存在服务端；本版尚未配置真实模型。页脚已移除赛事原型与平台隶属提示文案。
 
-部分网络会遇到 chatgpt.site 平台入口的 Cloudflare 403。已准备无需该域名的[独立部署方案](deployment/MIGRATION.md)，包括 Render 配置、Docker/HTTPS 配置和持久化数据库；新地址尚未创建。
+部分网络会遇到 chatgpt.site 平台入口的 Cloudflare 403。当前优先使用 [Cloudflare 免费独立部署](deployment/CLOUDFLARE.md)，保留 D1 持久化数据并使用平台分配的 workers.dev 网址。另有 [Render / Docker 部署方案](deployment/MIGRATION.md)。实际新地址需在部署成功后确认。
 
 ## 师生操作
 

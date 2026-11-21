@@ -1,0 +1,16 @@
+{
+  "name": "did-it-submit",
+  "main": "dist/server/index.js",
+  "compatibility_date": "2026-11-21",
+  "workers_dev": true,
+  "send_metrics": false,
+  "keep_vars": true,
+  "build": { "command": "node scripts/build.mjs" },
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "did-it-submit-classroom",
+      "migrations_dir": "drizzle"
+    }
+  ]
+}
