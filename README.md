@@ -12,7 +12,7 @@ Reverse UX Challenge：以在线教学实训平台的学生端功能为骨架，
 node server.mjs
 ```
 
-打开 http://127.0.0.1:4173 。页面也可部署到任意支持静态文件的 HTTP/HTTPS 服务。请通过 HTTP 打开，勿直接双击 HTML：模块与 Worker 需要 HTTP 环境。
+打开终端打印的 Local 地址，默认 http://127.0.0.1:4173 ；端口被占用时会自动选择 4174–4183 中的空闲端口。页面也可部署到任意支持静态文件的 HTTP/HTTPS 服务。请通过 HTTP 打开，勿直接双击 HTML：模块与 Worker 需要 HTTP 环境。
 
 ```sh
 node --test tests/core.test.mjs
