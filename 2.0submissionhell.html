@@ -1,0 +1,1278 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>高校在线课程考核平台 - 期末综合测验</title>
+  <style>
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    body {
+      font-family: "Microsoft YaHei", "PingFang SC", sans-serif;
+      background-color: #eef2f7;
+      color: #222;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+    }
+
+    /* 顶部教务系统导航栏 */
+    .topbar {
+      position: relative;
+      z-index: 1100;
+      background: #1b4b8a;
+      color: #fff;
+      padding: 12px 24px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      border-bottom: 3px solid #123461;
+    }
+
+    .topbar-title {
+      font-size: 18px;
+      font-weight: 700;
+      letter-spacing: 0.5px;
+    }
+
+    .topbar-meta {
+      font-size: 13px;
+      display: flex;
+      gap: 14px;
+      align-items: center;
+    }
+
+    .topbar-btn {
+      background: rgba(255, 255, 255, 0.15);
+      color: #fff;
+      border: 1px solid rgba(255, 255, 255, 0.45);
+      padding: 5px 12px;
+      font-size: 12.5px;
+      cursor: pointer;
+      border-radius: 3px;
+    }
+
+    .topbar-btn:hover {
+      background: rgba(255, 255, 255, 0.25);
+    }
+
+    .topbar-reset-btn {
+      background: #dc2626;
+      border-color: #fecaca;
+      font-weight: 700;
+    }
+
+    .topbar-reset-btn:hover {
+      background: #b91c1c;
+    }
+
+    /* 主容器 */
+    .app-container {
+      flex: 1;
+      max-width: 1120px;
+      width: 100%;
+      margin: 24px auto;
+      padding: 0 16px;
+    }
+
+    /* 考前须知（进入界面） */
+    .intro-card {
+      background: #fff;
+      border: 1px solid #cbd5e1;
+      border-radius: 4px;
+      padding: 28px 32px;
+      max-width: 780px;
+      margin: 20px auto;
+      box-shadow: 0 2px 6px rgba(0, 0, 0, 0.05);
+    }
+
+    .intro-card h2 {
+      font-size: 20px;
+      color: #1b4b8a;
+      border-bottom: 1px solid #e2e8f0;
+      padding-bottom: 12px;
+      margin-bottom: 18px;
+    }
+
+    .notice-box {
+      background: #f8fafc;
+      border: 1px solid #dbe4ee;
+      padding: 16px 20px;
+      font-size: 13.5px;
+      line-height: 1.85;
+      color: #334155;
+      margin-bottom: 22px;
+    }
+
+    .notice-box ol {
+      padding-left: 20px;
+    }
+
+    .notice-box li {
+      margin-bottom: 6px;
+    }
+
+    /* 左右分栏答题布局 */
+    .exam-layout {
+      display: grid;
+      grid-template-columns: 240px 1fr;
+      gap: 20px;
+      align-items: start;
+    }
+
+    /* 左侧题号栏 */
+    .sidebar {
+      background: #fff;
+      border: 1px solid #cbd5e1;
+      border-radius: 4px;
+      padding: 18px;
+    }
+
+    .sidebar-title {
+      font-size: 15px;
+      font-weight: 700;
+      color: #1e293b;
+      padding-bottom: 10px;
+      border-bottom: 1px solid #e2e8f0;
+      margin-bottom: 14px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    .lock-badge {
+      font-size: 11px;
+      padding: 2px 6px;
+      border-radius: 2px;
+      background: #fee2e2;
+      color: #991b1b;
+    }
+
+    .lock-badge.unlocked {
+      background: #dcfce7;
+      color: #166534;
+    }
+
+    .question-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 10px;
+      margin-bottom: 16px;
+    }
+
+    .q-num-btn {
+      height: 40px;
+      border: 1px solid #cbd5e1;
+      background: #f8fafc;
+      color: #334155;
+      font-size: 14px;
+      font-weight: 600;
+      border-radius: 3px;
+      cursor: pointer;
+      transition: all 0.15s;
+    }
+
+    .q-num-btn.answered {
+      background: #e0f2fe;
+      border-color: #7dd3fc;
+      color: #0369a1;
+    }
+
+    .q-num-btn.current {
+      background: #1b4b8a;
+      border-color: #1b4b8a;
+      color: #fff;
+    }
+
+    .q-num-btn:disabled {
+      cursor: not-allowed;
+      opacity: 0.65;
+    }
+
+    .sidebar-tip {
+      font-size: 12px;
+      color: #64748b;
+      line-height: 1.6;
+      border-top: 1px dashed #cbd5e1;
+      padding-top: 12px;
+    }
+
+    .sidebar-review-btn {
+      width: 100%;
+      margin-top: 12px;
+      padding: 9px;
+      background: #0f766e;
+      color: #fff;
+      border: none;
+      border-radius: 3px;
+      font-size: 13px;
+      cursor: pointer;
+    }
+
+    .sidebar-review-btn:hover {
+      background: #115e59;
+    }
+
+    /* 右侧答题卡片 */
+    .main-panel {
+      background: #fff;
+      border: 1px solid #cbd5e1;
+      border-radius: 4px;
+      padding: 26px 30px;
+      min-height: 440px;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+    }
+
+    .question-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      border-bottom: 1px solid #e2e8f0;
+      padding-bottom: 12px;
+      margin-bottom: 20px;
+    }
+
+    .question-tag {
+      font-size: 12px;
+      background: #eff6ff;
+      color: #1d4ed8;
+      border: 1px solid #bfdbfe;
+      padding: 3px 8px;
+      border-radius: 2px;
+    }
+
+    .question-stem {
+      font-size: 16px;
+      line-height: 1.7;
+      margin-bottom: 22px;
+      color: #0f172a;
+      font-weight: 600;
+    }
+
+    .options-list {
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+    }
+
+    .option-item {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 12px 14px;
+      border: 1px solid #cbd5e1;
+      border-radius: 4px;
+      cursor: pointer;
+      font-size: 14.5px;
+      transition: background 0.15s, border-color 0.15s;
+    }
+
+    .option-item:hover {
+      background: #f8fafc;
+      border-color: #94a3b8;
+    }
+
+    .option-item.selected {
+      background: #eff6ff;
+      border-color: #1b4b8a;
+    }
+
+    /* 文件上传区（第5题，故意不写明PDF要求） */
+    .upload-box {
+      border: 2px dashed #94a3b8;
+      background: #f8fafc;
+      border-radius: 4px;
+      padding: 28px;
+      text-align: center;
+    }
+
+    .upload-box input[type="file"] {
+      margin-top: 12px;
+    }
+
+    .file-status {
+      margin-top: 14px;
+      font-size: 13.5px;
+      color: #1e293b;
+      background: #e2e8f0;
+      display: inline-block;
+      padding: 6px 12px;
+      border-radius: 3px;
+    }
+
+    /* 底部按钮栏 */
+    .action-bar {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      border-top: 1px solid #e2e8f0;
+      padding-top: 18px;
+      margin-top: 28px;
+    }
+
+    .btn {
+      padding: 9px 20px;
+      border-radius: 3px;
+      font-size: 14px;
+      cursor: pointer;
+      border: 1px solid transparent;
+    }
+
+    .btn-primary {
+      background: #1b4b8a;
+      color: #fff;
+    }
+
+    .btn-primary:hover {
+      background: #153c6e;
+    }
+
+    .btn-primary:disabled {
+      background: #94a3b8;
+      cursor: not-allowed;
+    }
+
+    .btn-secondary {
+      background: #fff;
+      color: #334155;
+      border-color: #cbd5e1;
+    }
+
+    .btn-secondary:hover {
+      background: #f1f5f9;
+    }
+
+    .btn-danger {
+      background: #b91c1c;
+      color: #fff;
+    }
+
+    /* 终审总览表格 */
+    .review-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 14px;
+      margin-bottom: 20px;
+    }
+
+    .review-table th,
+    .review-table td {
+      border: 1px solid #cbd5e1;
+      padding: 10px 12px;
+      text-align: left;
+    }
+
+    .review-table th {
+      background: #f1f5f9;
+      color: #334155;
+    }
+
+    .link-btn {
+      background: none;
+      border: none;
+      color: #1b4b8a;
+      text-decoration: underline;
+      cursor: pointer;
+      font-size: 13px;
+    }
+
+    /* 弹窗遮罩与可定位弹窗 */
+    .modal-backdrop {
+      position: fixed;
+      inset: 0;
+      background: rgba(15, 23, 42, 0.45);
+      z-index: 1000;
+      display: none;
+    }
+
+    .modal-backdrop.active {
+      display: block;
+    }
+
+    .modal-dialog {
+      position: fixed;
+      width: 380px;
+      max-width: calc(100vw - 32px);
+      background: #fff;
+      border: 1px solid #94a3b8;
+      border-radius: 4px;
+      box-shadow: 0 12px 30px rgba(0, 0, 0, 0.25);
+      overflow: hidden;
+    }
+
+    .modal-header {
+      background: #1b4b8a;
+      color: #fff;
+      padding: 10px 16px;
+      font-size: 14px;
+      font-weight: 700;
+    }
+
+    .modal-header.error-header {
+      background: #991b1b;
+    }
+
+    .modal-body {
+      padding: 18px 16px;
+      font-size: 14px;
+      line-height: 1.65;
+      color: #1e293b;
+    }
+
+    .modal-footer {
+      padding: 12px 16px;
+      background: #f8fafc;
+      border-top: 1px solid #e2e8f0;
+      display: flex;
+      justify-content: flex-end;
+      gap: 10px;
+    }
+
+    /* 虚假进度条 */
+    .progress-track {
+      width: 100%;
+      height: 16px;
+      background: #e2e8f0;
+      border-radius: 3px;
+      overflow: hidden;
+      margin: 12px 0 8px;
+    }
+
+    .progress-fill {
+      height: 100%;
+      width: 0%;
+      background: #1b4b8a;
+      transition: width 0.08s linear;
+    }
+
+    .progress-meta {
+      display: flex;
+      justify-content: space-between;
+      font-size: 12.5px;
+      color: #475569;
+    }
+
+    /* 交卷成功页 */
+    .result-card {
+      background: #fff;
+      border: 1px solid #cbd5e1;
+      border-radius: 4px;
+      padding: 30px 32px;
+      max-width: 720px;
+      margin: 20px auto;
+    }
+
+    .result-score {
+      font-size: 32px;
+      font-weight: 700;
+      color: #166534;
+      margin: 14px 0;
+    }
+  </style>
+</head>
+<body>
+  <header class="topbar">
+    <div class="topbar-title">高校在线考核系统 · 2026 秋季学期</div>
+    <div class="topbar-meta">
+      <span>考生：2026040192</span>
+      <span id="timerDisplay">已用时：00:00</span>
+      <button id="showNoticeBtn" class="topbar-btn" type="button">考前须知</button>
+      <button id="resetTestBtn" class="topbar-btn topbar-reset-btn" type="button">Reset（按键盘 5）</button>
+    </div>
+  </header>
+
+  <main id="appRoot" class="app-container"></main>
+
+  <div id="modalBackdrop" class="modal-backdrop">
+    <div id="modalDialog" class="modal-dialog"></div>
+  </div>
+
+  <script>
+    /* =========================================================================
+     * 0. CONFIG 层：集中管理题库与逆向 UX 机制参数
+     * ========================================================================= */
+    const QUESTIONS_DATA = [
+      {
+        id: 1,
+        type: "choice",
+        title: "在软件工程中，MVC 架构模式中的字母 M、V、C 分别代表什么？",
+        options: [
+          { key: "A", text: "Model（模型）、View（视图）、Controller（控制器）" },
+          { key: "B", text: "Module（模块）、Variable（变量）、Class（类）" },
+          { key: "C", text: "Memory（内存）、Virtual（虚拟）、Cache（缓存）" },
+          { key: "D", text: "Main（主程序）、Value（值）、Config（配置）" }
+        ],
+        correct: "A"
+      },
+      {
+        id: 2,
+        type: "choice",
+        title: "HTTP 状态码中，通常表示“客户端请求语法错误或无法被服务器理解”的是哪一项？",
+        options: [
+          { key: "A", text: "200 OK" },
+          { key: "B", text: "301 Moved Permanently" },
+          { key: "C", text: "400 Bad Request" },
+          { key: "D", text: "503 Service Unavailable" }
+        ],
+        correct: "C"
+      },
+      {
+        id: 3,
+        type: "choice",
+        title: "以下关于前端本地存储 localStorage 的描述，哪一项是正确的？",
+        options: [
+          { key: "A", text: "关闭浏览器标签页后数据会立即自动清除" },
+          { key: "B", text: "同一源下的数据可持久保存，除非主动清除" },
+          { key: "C", text: "每次发送 HTTP 请求都会自动随请求头携带" },
+          { key: "D", text: "可以直接存储二进制 File 对象而无需序列化" }
+        ],
+        correct: "B"
+      },
+      {
+        id: 4,
+        type: "choice",
+        title: "在交互设计中，故意引导用户走弯路或制造心理挫败的设计通常被称为？",
+        options: [
+          { key: "A", text: "无障碍设计（Accessibility）" },
+          { key: "B", text: "响应式设计（Responsive Design）" },
+          { key: "C", text: "逆向体验 / 暗黑模式（Anti-UX / Dark Pattern）" },
+          { key: "D", text: "原子化设计（Atomic Design）" }
+        ],
+        correct: "C"
+      },
+      {
+        id: 5,
+        type: "file",
+        title: "请上传本次课程的《期末综合实验报告》附件，上传完成后进入总览并提交试卷。"
+      }
+    ];
+
+    const FRICTION_CONFIG = {
+      confirmSteps: [
+        {
+          title: "系统提示 (1/3)",
+          message: "您即将提交本次期末测验答卷，确认所有题目均已作答完毕？",
+          position: { top: "72px", left: "48px" },
+          confirmText: "确认提交",
+          cancelText: "取消",
+          swapButtons: false
+        },
+        {
+          title: "二次复核 (2/3)",
+          message: "提交后答卷将同步至教务归档中心，请再次确认是否继续提交？",
+          position: { bottom: "48px", right: "48px" },
+          confirmText: "继续提交",
+          cancelText: "返回检查",
+          swapButtons: true
+        },
+        {
+          title: "最终确认 (3/3)",
+          message: "这是最后一次确认：点击下方“确认交卷”后将立即发起上传，确定执行？",
+          position: { top: "96px", right: "64px" },
+          confirmText: "确认交卷",
+          cancelText: "暂不提交",
+          swapButtons: false
+        }
+      ],
+      vagueErrorMessage: "Submission failed.",
+      fastPhaseMs: 2000,
+      stallAt99Ms: 10000
+    };
+
+    /* =========================================================================
+     * 1. MODEL 层：状态管理、业务校验与本地持久化
+     * ========================================================================= */
+    class ExamModel {
+      constructor(questions) {
+        this.storageKey = "reverse_ux_exam_state_v2";
+        this.questions = questions;
+        this.state = this.loadState();
+      }
+
+      getDefaultState() {
+        return {
+          phase: "INTRO",
+          currentIndex: 0,
+          allCompleted: false,
+          answers: {},
+          uploadedFile: null,
+          startedAt: null,
+          submittedAt: null
+        };
+      }
+
+      loadState() {
+        try {
+          const raw = localStorage.getItem(this.storageKey);
+          if (!raw) return this.getDefaultState();
+          return { ...this.getDefaultState(), ...JSON.parse(raw) };
+        } catch {
+          return this.getDefaultState();
+        }
+      }
+
+      saveState() {
+        localStorage.setItem(this.storageKey, JSON.stringify(this.state));
+      }
+
+      reset() {
+        this.state = this.getDefaultState();
+        localStorage.removeItem(this.storageKey);
+      }
+
+      startExam() {
+        this.state.phase = "ANSWERING";
+        this.state.currentIndex = 0;
+        this.state.startedAt = Date.now();
+        this.saveState();
+      }
+
+      getCurrentQuestion() {
+        return this.questions[this.state.currentIndex];
+      }
+
+      setChoiceAnswer(questionId, optionKey) {
+        this.state.answers[questionId] = optionKey;
+        this.saveState();
+      }
+
+      setUploadedFile(file) {
+        if (!file) return;
+        const isPdf = file.name.toLowerCase().endsWith(".pdf");
+        this.state.uploadedFile = {
+          name: file.name,
+          size: file.size,
+          isPdf
+        };
+        this.saveState();
+      }
+
+      isQuestionAnswered(question) {
+        if (question.type === "choice") {
+          return Boolean(this.state.answers[question.id]);
+        }
+        return Boolean(this.state.uploadedFile);
+      }
+
+      goNext() {
+        const lastIndex = this.questions.length - 1;
+        if (this.state.currentIndex < lastIndex) {
+          this.state.currentIndex += 1;
+        } else {
+          this.state.allCompleted = true;
+          this.state.phase = "REVIEW";
+        }
+        this.saveState();
+      }
+
+      jumpToQuestion(index) {
+        if (!this.state.allCompleted) return false;
+        this.state.currentIndex = index;
+        this.state.phase = "ANSWERING";
+        this.saveState();
+        return true;
+      }
+
+      enterReview() {
+        if (!this.state.allCompleted) return;
+        this.state.phase = "REVIEW";
+        this.saveState();
+      }
+
+      validateSubmission() {
+        const allChoicesDone = this.questions
+          .filter((q) => q.type === "choice")
+          .every((q) => Boolean(this.state.answers[q.id]));
+
+        const hasValidPdf = Boolean(
+          this.state.uploadedFile && this.state.uploadedFile.isPdf
+        );
+
+        return allChoicesDone && hasValidPdf;
+      }
+
+      finalizeSubmission() {
+        this.state.phase = "SUBMITTED";
+        this.state.submittedAt = new Date().toLocaleString("zh-CN");
+        this.saveState();
+      }
+
+      calculateChoiceScore() {
+        let correctCount = 0;
+        const choiceQuestions = this.questions.filter((q) => q.type === "choice");
+        choiceQuestions.forEach((q) => {
+          if (this.state.answers[q.id] === q.correct) {
+            correctCount += 1;
+          }
+        });
+        return {
+          correctCount,
+          totalChoices: choiceQuestions.length,
+          score: correctCount * 20
+        };
+      }
+    }
+
+    /* =========================================================================
+     * 2. VIEW 层：DOM 渲染与弹窗控制
+     * ========================================================================= */
+    class ExamView {
+      constructor() {
+        this.root = document.getElementById("appRoot");
+        this.modalBackdrop = document.getElementById("modalBackdrop");
+        this.modalDialog = document.getElementById("modalDialog");
+        this.timerDisplay = document.getElementById("timerDisplay");
+      }
+
+      updateTimer(seconds) {
+        const mins = String(Math.floor(seconds / 60)).padStart(2, "0");
+        const secs = String(seconds % 60).padStart(2, "0");
+        this.timerDisplay.textContent = `已用时：${mins}:${secs}`;
+      }
+
+      renderIntro() {
+        this.root.innerHTML = `
+          <section class="intro-card">
+            <h2>期末综合测验 · 考前须知</h2>
+            <div class="notice-box">
+              <ol>
+                <li>本次考核共包含 <strong>5 道题目</strong>（4 道单选题 + 1 道报告附件上传题）。</li>
+                <li>系统采用<strong>单题顺序锁定模式</strong>：作答期间仅允许进入下一题，中途不可返回上一题。</li>
+                <li>完成全部 5 道题目后，系统将自动解锁左侧题号导航，届时可查看并修改任意题目答案。</li>
+                <li>教务归档合规要求：所有上传至本平台的实验报告附件<strong>仅支持 .pdf 格式文件</strong>，非规范格式将导致交卷校验失败。</li>
+                <li>测试快捷方式：任意时刻按下键盘数字键 <strong>5</strong>，将立即重置并取消一切操作，回到未提交初始界面。</li>
+              </ol>
+            </div>
+            <div style="text-align: right;">
+              <button id="startExamBtn" class="btn btn-primary" type="button">我已阅读须知，开始答题</button>
+            </div>
+          </section>
+        `;
+      }
+
+      renderSidebarHtml(model) {
+        const { phase, currentIndex, allCompleted } = model.state;
+        const buttonsHtml = model.questions
+          .map((q, idx) => {
+            const isCurrent = phase === "ANSWERING" && idx === currentIndex;
+            const isAnswered = model.isQuestionAnswered(q);
+            const classes = [
+              "q-num-btn",
+              isAnswered ? "answered" : "",
+              isCurrent ? "current" : ""
+            ].join(" ");
+            const disabledAttr = allCompleted ? "" : "disabled";
+            return `<button class="${classes}" data-jump-index="${idx}" ${disabledAttr}>${q.id}</button>`;
+          })
+          .join("");
+
+        return `
+          <aside class="sidebar">
+            <div class="sidebar-title">
+              <span>题目序号</span>
+              <span class="lock-badge ${allCompleted ? "unlocked" : ""}">
+                ${allCompleted ? "已解锁可修改" : "顺序锁定中"}
+              </span>
+            </div>
+            <div class="question-grid">${buttonsHtml}</div>
+            <div class="sidebar-tip">
+              ${
+                allCompleted
+                  ? "您已完成全部题目，现在可点击上方任意题号返回查看或修改答案。"
+                  : "当前处于单向作答模式，只能顺序前进，全部答完后方可返回查看与修改。"
+              }
+            </div>
+            ${
+              allCompleted
+                ? `<button id="goReviewBtn" class="sidebar-review-btn" type="button">查看总览并提交试卷</button>`
+                : ""
+            }
+          </aside>
+        `;
+      }
+
+      renderQuestionWorkspace(model) {
+        const q = model.getCurrentQuestion();
+        const { currentIndex, allCompleted } = model.state;
+        const isAnswered = model.isQuestionAnswered(q);
+        const isLast = currentIndex === model.questions.length - 1;
+
+        let bodyHtml = "";
+        if (q.type === "choice") {
+          const selectedKey = model.state.answers[q.id];
+          bodyHtml = `
+            <div class="options-list">
+              ${q.options
+                .map(
+                  (opt) => `
+                  <label class="option-item ${selectedKey === opt.key ? "selected" : ""}">
+                    <input
+                      type="radio"
+                      name="q_${q.id}"
+                      value="${opt.key}"
+                      ${selectedKey === opt.key ? "checked" : ""}
+                    />
+                    <span><strong>${opt.key}.</strong> ${opt.text}</span>
+                  </label>
+                `
+                )
+                .join("")}
+            </div>
+          `;
+        } else {
+          const fileInfo = model.state.uploadedFile
+            ? `<div class="file-status">已选择附件：${model.state.uploadedFile.name}（${Math.max(1, Math.round(model.state.uploadedFile.size / 1024))} KB）</div>`
+            : `<div class="file-status">尚未选择文件</div>`;
+
+          bodyHtml = `
+            <div class="upload-box">
+              <p>请点击下方按钮选择本地实验报告文件进行上传</p>
+              <input id="fileInput" type="file" />
+              <div>${fileInfo}</div>
+            </div>
+          `;
+        }
+
+        const nextBtnLabel = allCompleted
+          ? "保存并返回总览"
+          : isLast
+          ? "完成全部题目，进入总览"
+          : "下一题 →";
+
+        this.root.innerHTML = `
+          <div class="exam-layout">
+            ${this.renderSidebarHtml(model)}
+            <section class="main-panel">
+              <div>
+                <div class="question-header">
+                  <strong>第 ${q.id} 题 / 共 ${model.questions.length} 题</strong>
+                  <span class="question-tag">${q.type === "choice" ? "单项选择题" : "附件上传题"}</span>
+                </div>
+                <div class="question-stem">${q.id}. ${q.title}</div>
+                ${bodyHtml}
+              </div>
+              <div class="action-bar">
+                <span style="font-size: 12.5px; color: #64748b;">
+                  ${allCompleted ? "当前处于终审修改状态" : "提示：中途不可返回上一题（按键盘 5 可随时重置）"}
+                </span>
+                <button
+                  id="nextQuestionBtn"
+                  class="btn btn-primary"
+                  type="button"
+                  ${isAnswered ? "" : "disabled"}
+                >
+                  ${nextBtnLabel}
+                </button>
+              </div>
+            </section>
+          </div>
+        `;
+      }
+
+      renderReviewWorkspace(model) {
+        const rowsHtml = model.questions
+          .map((q, idx) => {
+            let answerText = "未作答";
+            if (q.type === "choice" && model.state.answers[q.id]) {
+              answerText = `已选 ${model.state.answers[q.id]}`;
+            } else if (q.type === "file" && model.state.uploadedFile) {
+              answerText = `附件：${model.state.uploadedFile.name}`;
+            }
+            return `
+              <tr>
+                <td>第 ${q.id} 题</td>
+                <td>${q.type === "choice" ? "单选题" : "附件上传"}</td>
+                <td>${answerText}</td>
+                <td>
+                  <button class="link-btn" data-edit-index="${idx}" type="button">查看 / 修改</button>
+                </td>
+              </tr>
+            `;
+          })
+          .join("");
+
+        this.root.innerHTML = `
+          <div class="exam-layout">
+            ${this.renderSidebarHtml(model)}
+            <section class="main-panel">
+              <div>
+                <div class="question-header">
+                  <strong>全卷作答总览（已解锁修改权限）</strong>
+                  <span class="question-tag">终审阶段</span>
+                </div>
+                <table class="review-table">
+                  <thead>
+                    <tr>
+                      <th style="width: 90px;">题号</th>
+                      <th style="width: 100px;">题型</th>
+                      <th>当前作答内容</th>
+                      <th style="width: 110px;">操作</th>
+                    </tr>
+                  </thead>
+                  <tbody>${rowsHtml}</tbody>
+                </table>
+              </div>
+              <div class="action-bar">
+                <span style="font-size: 13px; color: #475569;">
+                  可点击左侧题号或表格中的“查看 / 修改”调整任意题目
+                </span>
+                <button id="submitExamBtn" class="btn btn-primary" type="button">提交试卷</button>
+              </div>
+            </section>
+          </div>
+        `;
+      }
+
+      renderSubmitted(model) {
+        const { correctCount, totalChoices, score } = model.calculateChoiceScore();
+        this.root.innerHTML = `
+          <section class="result-card">
+            <h2 style="color: #166534; margin-bottom: 10px;">✔ 试卷提交成功</h2>
+            <p style="font-size: 14px; color: #475569;">
+              提交时间：${model.state.submittedAt}
+            </p>
+            <div class="result-score">客观题得分：${score} / ${totalChoices * 20}</div>
+            <p style="font-size: 14px; line-height: 1.8; margin-bottom: 20px;">
+              单选题答对 <strong>${correctCount}</strong> / ${totalChoices} 题。<br />
+              实验报告附件：<strong>${model.state.uploadedFile.name}</strong>（已通过格式校验并归档）。
+            </p>
+            <button id="restartExamBtn" class="btn btn-secondary" type="button">清空记录并重新测试（或直接按键盘 5）</button>
+          </section>
+        `;
+      }
+
+      openModal({ title, bodyHtml, footerHtml, position, isError = false }) {
+        this.modalDialog.style.top = "";
+        this.modalDialog.style.bottom = "";
+        this.modalDialog.style.left = "";
+        this.modalDialog.style.right = "";
+        this.modalDialog.style.transform = "";
+
+        if (position) {
+          Object.entries(position).forEach(([k, v]) => {
+            this.modalDialog.style[k] = v;
+          });
+        } else {
+          this.modalDialog.style.top = "50%";
+          this.modalDialog.style.left = "50%";
+          this.modalDialog.style.transform = "translate(-50%, -50%)";
+        }
+
+        this.modalDialog.innerHTML = `
+          <div class="modal-header ${isError ? "error-header" : ""}">${title}</div>
+          <div class="modal-body">${bodyHtml}</div>
+          ${footerHtml ? `<div class="modal-footer">${footerHtml}</div>` : ""}
+        `;
+        this.modalBackdrop.classList.add("active");
+      }
+
+      closeModal() {
+        this.modalBackdrop.classList.remove("active");
+        this.modalDialog.innerHTML = "";
+      }
+    }
+
+    /* =========================================================================
+     * 3. CONTROLLER 层：事件绑定、键盘 5 全局重置与逆向交互编排
+     * ========================================================================= */
+    class ExamController {
+      constructor(model, view, frictionConfig) {
+        this.model = model;
+        this.view = view;
+        this.friction = frictionConfig;
+        this.elapsedSeconds = 0;
+        this.timerId = null;
+        this.progressRafId = null;
+        this.resultTimeoutId = null;
+
+        this.bindGlobalEvents();
+        this.startTimer();
+        this.render();
+      }
+
+      cancelPendingSubmission() {
+        if (this.progressRafId !== null) {
+          cancelAnimationFrame(this.progressRafId);
+          this.progressRafId = null;
+        }
+        if (this.resultTimeoutId !== null) {
+          clearTimeout(this.resultTimeoutId);
+          this.resultTimeoutId = null;
+        }
+      }
+
+      resetAll() {
+        this.cancelPendingSubmission();
+        this.view.closeModal();
+        this.model.reset();
+        this.elapsedSeconds = 0;
+        this.view.updateTimer(0);
+        this.render();
+      }
+
+      bindGlobalEvents() {
+        // 全局监听键盘 5：随时取消一切并重置到未提交的初始界面
+        window.addEventListener("keydown", (e) => {
+          if (e.key === "5" || e.code === "Digit5" || e.code === "Numpad5") {
+            e.preventDefault();
+            this.resetAll();
+          }
+        });
+
+        document.getElementById("showNoticeBtn").addEventListener("click", () => {
+          this.cancelPendingSubmission();
+          this.view.openModal({
+            title: "考前须知（回看）",
+            bodyHtml: `
+              <p style="font-size: 13px; line-height: 1.7;">
+                1. 本次测验共 5 题，中途不可返回，答完后可全卷修改。<br/>
+                2. 教务归档合规要求：所有上传附件<strong>仅支持 .pdf 格式文件</strong>，非规范格式将导致交卷校验失败。<br/>
+                3. 随时按键盘 <strong>5</strong> 可一键重置测试。
+              </p>
+            `,
+            footerHtml: `<button id="closeNoticeModalBtn" class="btn btn-primary" type="button">关闭</button>`
+          });
+          document
+            .getElementById("closeNoticeModalBtn")
+            .addEventListener("click", () => this.view.closeModal());
+        });
+
+        document.getElementById("resetTestBtn").addEventListener("click", () => {
+          this.resetAll();
+        });
+      }
+
+      startTimer() {
+        this.timerId = setInterval(() => {
+          if (this.model.state.phase === "ANSWERING" || this.model.state.phase === "REVIEW") {
+            this.elapsedSeconds += 1;
+            this.view.updateTimer(this.elapsedSeconds);
+          }
+        }, 1000);
+      }
+
+      render() {
+        const { phase } = this.model.state;
+        if (phase === "INTRO") {
+          this.view.renderIntro();
+          this.bindIntroEvents();
+        } else if (phase === "ANSWERING") {
+          this.view.renderQuestionWorkspace(this.model);
+          this.bindQuestionEvents();
+          this.bindSidebarEvents();
+        } else if (phase === "REVIEW") {
+          this.view.renderReviewWorkspace(this.model);
+          this.bindReviewEvents();
+          this.bindSidebarEvents();
+        } else if (phase === "SUBMITTED") {
+          this.view.renderSubmitted(this.model);
+          this.bindSubmittedEvents();
+        }
+      }
+
+      bindIntroEvents() {
+        document.getElementById("startExamBtn").addEventListener("click", () => {
+          this.model.startExam();
+          this.render();
+        });
+      }
+
+      bindSidebarEvents() {
+        document.querySelectorAll("[data-jump-index]").forEach((btn) => {
+          btn.addEventListener("click", () => {
+            const idx = Number(btn.getAttribute("data-jump-index"));
+            if (this.model.jumpToQuestion(idx)) {
+              this.render();
+            }
+          });
+        });
+
+        const goReviewBtn = document.getElementById("goReviewBtn");
+        if (goReviewBtn) {
+          goReviewBtn.addEventListener("click", () => {
+            this.model.enterReview();
+            this.render();
+          });
+        }
+      }
+
+      bindQuestionEvents() {
+        const q = this.model.getCurrentQuestion();
+
+        if (q.type === "choice") {
+          document.querySelectorAll(`input[name="q_${q.id}"]`).forEach((radio) => {
+            radio.addEventListener("change", (e) => {
+              this.model.setChoiceAnswer(q.id, e.target.value);
+              this.render();
+            });
+          });
+        } else {
+          const fileInput = document.getElementById("fileInput");
+          fileInput.addEventListener("change", (e) => {
+            const file = e.target.files[0];
+            if (file) {
+              this.model.setUploadedFile(file);
+              this.render();
+            }
+          });
+        }
+
+        document.getElementById("nextQuestionBtn").addEventListener("click", () => {
+          if (this.model.state.allCompleted) {
+            this.model.enterReview();
+          } else {
+            this.model.goNext();
+          }
+          this.render();
+        });
+      }
+
+      bindReviewEvents() {
+        document.querySelectorAll("[data-edit-index]").forEach((btn) => {
+          btn.addEventListener("click", () => {
+            const idx = Number(btn.getAttribute("data-edit-index"));
+            this.model.jumpToQuestion(idx);
+            this.render();
+          });
+        });
+
+        document.getElementById("submitExamBtn").addEventListener("click", () => {
+          this.runOverConfirmationFlow(0);
+        });
+      }
+
+      bindSubmittedEvents() {
+        document.getElementById("restartExamBtn").addEventListener("click", () => {
+          this.resetAll();
+        });
+      }
+
+      /* 逆向机制 1：3 次不同位置的过度确认 */
+      runOverConfirmationFlow(stepIndex) {
+        const steps = this.friction.confirmSteps;
+        if (stepIndex >= steps.length) {
+          this.runFakeProgressFlow();
+          return;
+        }
+
+        const step = steps[stepIndex];
+        const confirmBtnHtml = `<button id="modalConfirmBtn" class="btn btn-primary" type="button">${step.confirmText}</button>`;
+        const cancelBtnHtml = `<button id="modalCancelBtn" class="btn btn-secondary" type="button">${step.cancelText}</button>`;
+
+        this.view.openModal({
+          title: step.title,
+          bodyHtml: `<p>${step.message}</p>`,
+          footerHtml: step.swapButtons
+            ? confirmBtnHtml + cancelBtnHtml
+            : cancelBtnHtml + confirmBtnHtml,
+          position: step.position
+        });
+
+        document.getElementById("modalCancelBtn").addEventListener("click", () => {
+          this.view.closeModal();
+        });
+
+        document.getElementById("modalConfirmBtn").addEventListener("click", () => {
+          this.runOverConfirmationFlow(stepIndex + 1);
+        });
+      }
+
+      /* 逆向机制 3：2 秒冲到 99%，卡住等 10 秒 */
+      runFakeProgressFlow() {
+        this.cancelPendingSubmission();
+        this.view.openModal({
+          title: "正在提交试卷",
+          bodyHtml: `
+            <p id="progressStatusText">正在加密并上传作答数据...</p>
+            <div class="progress-track">
+              <div id="progressFill" class="progress-fill"></div>
+            </div>
+            <div class="progress-meta">
+              <span id="progressHint">请勿刷新或关闭页面</span>
+              <strong id="progressPercent">0%</strong>
+            </div>
+          `,
+          footerHtml: ""
+        });
+
+        const fillEl = document.getElementById("progressFill");
+        const percentEl = document.getElementById("progressPercent");
+        const statusEl = document.getElementById("progressStatusText");
+
+        const startTime = performance.now();
+        const fastMs = this.friction.fastPhaseMs;
+        const stallMs = this.friction.stallAt99Ms;
+
+        const tick = (now) => {
+          const elapsed = now - startTime;
+
+          if (elapsed < fastMs) {
+            const pct = Math.min(99, Math.floor((elapsed / fastMs) * 99));
+            fillEl.style.width = `${pct}%`;
+            percentEl.textContent = `${pct}%`;
+            this.progressRafId = requestAnimationFrame(tick);
+          } else if (elapsed < fastMs + stallMs) {
+            fillEl.style.width = "99%";
+            percentEl.textContent = "99%";
+            const stallElapsed = elapsed - fastMs;
+            if (stallElapsed > 6500) {
+              statusEl.textContent = "正在等待教务主节点最终响应，即将完成...";
+            } else if (stallElapsed > 3000) {
+              statusEl.textContent = "正在校验附件完整性与数字签名...";
+            } else {
+              statusEl.textContent = "即将完成，请耐心等待...";
+            }
+            this.progressRafId = requestAnimationFrame(tick);
+          } else {
+            this.progressRafId = null;
+            fillEl.style.width = "100%";
+            percentEl.textContent = "100%";
+            this.resultTimeoutId = setTimeout(() => {
+              this.resultTimeoutId = null;
+              this.handleSubmissionResult();
+            }, 300);
+          }
+        };
+
+        this.progressRafId = requestAnimationFrame(tick);
+      }
+
+      /* 逆向机制 2：非 PDF 时仅报 Submission failed. */
+      handleSubmissionResult() {
+        if (this.model.validateSubmission()) {
+          this.view.closeModal();
+          this.model.finalizeSubmission();
+          this.render();
+          return;
+        }
+
+        this.view.openModal({
+          title: "Error",
+          isError: true,
+          bodyHtml: `<p style="font-weight: 700; color: #991b1b; font-size: 15px;">${this.friction.vagueErrorMessage}</p>`,
+          footerHtml: `<button id="closeErrorBtn" class="btn btn-danger" type="button">确定</button>`
+        });
+
+        document.getElementById("closeErrorBtn").addEventListener("click", () => {
+          this.view.closeModal();
+        });
+      }
+    }
+
+    /* =========================================================================
+     * 4. 应用启动入口
+     * ========================================================================= */
+    document.addEventListener("DOMContentLoaded", () => {
+      const model = new ExamModel(QUESTIONS_DATA);
+      const view = new ExamView();
+      new ExamController(model, view, FRICTION_CONFIG);
+    });
+  </script>
+</body>
+</html>
