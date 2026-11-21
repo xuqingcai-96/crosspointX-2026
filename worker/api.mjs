@@ -5,8 +5,15 @@ const fail=(message,status=400)=>Object.assign(new Error(message),{status});
 const id=prefix=>prefix+'_'+crypto.randomUUID();
 const secret=()=>Array.from(crypto.getRandomValues(new Uint8Array(32)),n=>n.toString(16).padStart(2,'0')).join('');
 const hash=async text=>Array.from(new Uint8Array(await crypto.subtle.digest('SHA-256',new TextEncoder().encode(text))),n=>n.toString(16).padStart(2,'0')).join('');
-const rows=async(db,sql,...args)=>(await db.prepare(sql).bind(...args).all()).results;
-const one=(db,sql,...args)=>db.prepare(sql).bind(...args).first();
+const transientRead=error=>/D1_ERROR.*internal error|SQLITE_BUSY|temporarily unavailable/i.test(String(error?.message||error));
+async function readWithRetry(operation){
+  for(let attempt=0;;attempt++){
+    try{return await operation();}
+    catch(error){if(attempt>=2||!transientRead(error))throw error;await new Promise(resolve=>setTimeout(resolve,50*(attempt+1)));}
+  }
+}
+const rows=async(db,sql,...args)=>(await readWithRetry(()=>db.prepare(sql).bind(...args).all())).results;
+const one=(db,sql,...args)=>readWithRetry(()=>db.prepare(sql).bind(...args).first());
 const exec=(db,sql,...args)=>db.prepare(sql).bind(...args).run();
 const roomView=room=>({id:room.id,code:room.code,course_name:room.course_name,teacher_name:room.teacher_name});
 async function payload(request){

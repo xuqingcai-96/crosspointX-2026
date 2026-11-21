@@ -85,3 +85,9 @@ test('client material validation follows teacher task and current student',()=>{
   const d=newDraft(a);assert.ok(studentErrors(d,a,room,student).length>0);d.code=PRESETS.max.solution;d.evaluation={passed:true,id:'EV-1',code:d.code};Object.assign(d,{filename:fileFor(a,student),attachment:{content:d.code},course:room.course_name,task:a.title,evaluationId:'EV-1',note:'本次已完成最大值函数与边界测试'});assert.deepEqual(studentErrors(d,a,room,student),[]);
   d.code+='\n// change';assert.ok(studentErrors(d,a,room,student).some(e=>e.includes('当前代码')));
 });
+test('transient D1 read failures retry without repeating any writes',async()=>{
+  const f=await setup();let failures=0,writes=0;
+  const DB={prepare(sql){const statement=f.DB.prepare(sql);const wrapped={bind(...args){statement.bind(...args);return wrapped;},first(){if(sql.includes('teacher_token_hash')&&failures<2){failures++;throw new Error('D1_ERROR: internal error; reference = synthetic-read-failure');}return statement.first();},all(){return statement.all();},run(){writes++;return statement.run();}};return wrapped;}};
+  const response=await handleApi(new Request('https://classroom.example/api/session',{headers:{Authorization:'Bearer '+f.teacher.token}}),{DB});
+  assert.equal(response.status,200);assert.equal(failures,2);assert.equal(writes,0);f.DB.close();
+});
