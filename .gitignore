@@ -4,3 +4,6 @@ outputs/
 .openai/
 .DS_Store
 Thumbs.db
+.local-data/
+dist/server/
+dist/.openai/

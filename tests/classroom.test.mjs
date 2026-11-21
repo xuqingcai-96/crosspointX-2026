@@ -1,0 +1,87 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import {handleApi} from '../worker/api.mjs';
+import {openLocalDatabase} from '../worker/local-db.mjs';
+import {PRESETS,testsFor,newDraft,fileFor,studentErrors} from '../dist/classroom.mjs';
+
+function fixture(){
+  const DB=openLocalDatabase();
+  async function call(path,body,token){const request=new Request('https://classroom.example'+path,{method:body?'POST':'GET',headers:{...(token?{Authorization:'Bearer '+token}:{}),...(body?{'Content-Type':'application/json',Origin:'https://classroom.example'}:{})},...(body?{body:JSON.stringify(body)}:{})});const response=await handleApi(request,{DB});return {status:response.status,body:await response.json()};}
+  return {DB,call};
+}
+async function setup({publish=true}={}){
+  const f=fixture(),teacher=(await f.call('/api/classrooms',{teacherName:'测试教师',courseName:'JavaScript 程序设计'})).body;
+  const student=(await f.call('/api/classrooms/join',{code:teacher.room.code,name:'学生甲',studentNumber:'20260001'})).body;
+  let created=await f.call('/api/assignments',{title:'第 1 关：两个数的和',description:PRESETS.sum.description,preset:'sum',filePrefix:'JS_L01'},teacher.token);
+  assert.equal(created.status,201);const assignment=created.body.assignments[0];
+  if(publish)assert.equal((await f.call('/api/assignments/'+assignment.id+'/publish',{},teacher.token)).status,200);
+  return {...f,teacher,student,assignment};
+}
+function submission(f,nonce=crypto.randomUUID()){
+  const code=PRESETS.sum.solution,results=testsFor('sum').map(t=>({...t,actual:t.expected,passed:true}));
+  return {nonce,code,filename:'JS_L01_20260001.js',course:f.teacher.room.course_name,task:f.assignment.title,evaluationId:'EVAL-TEST',note:'已经完成函数实现并通过全部测试用例',evaluation:{id:'EVAL-TEST',passed:true,code,results}};
+}
+test('drafts stay teacher-only; students cannot publish or create assignments',async()=>{
+  const f=await setup({publish:false});
+  assert.equal((await f.call('/api/session',null,f.student.token)).body.assignments.length,0);
+  assert.equal((await f.call('/api/assignments/'+f.assignment.id+'/publish',{},f.student.token)).status,403);
+  assert.equal((await f.call('/api/assignments',{},f.student.token)).status,403);
+  assert.equal((await f.call('/api/assignments/'+f.assignment.id+'/publish',{},f.teacher.token)).status,200);
+  assert.equal((await f.call('/api/session',null,f.student.token)).body.assignments.length,1);f.DB.close();
+});
+test('submission is pending without grade; teacher verification creates final score',async()=>{
+  const f=await setup(),body=submission(f),submitted=await f.call('/api/assignments/'+f.assignment.id+'/submit',body,f.student.token);
+  assert.equal(submitted.status,201);const s=submitted.body.submissions[0];assert.equal(s.status,'pending');assert.equal(s.score,null);
+  assert.equal((await f.call('/api/submissions/'+s.id+'/review',{decision:'verified',score:96,checkedCode:true,checkedMaterial:true},f.student.token)).status,403);
+  assert.equal((await f.call('/api/submissions/'+s.id+'/review',{decision:'verified',score:96,checkedCode:false,checkedMaterial:true},f.teacher.token)).status,400);
+  const reviewed=await f.call('/api/submissions/'+s.id+'/review',{decision:'verified',score:96,checkedCode:true,checkedMaterial:true,feedback:'代码与材料一致，核实通过。'},f.teacher.token);assert.equal(reviewed.status,200);
+  const result=(await f.call('/api/session',null,f.student.token)).body.submissions[0];assert.equal(result.status,'verified');assert.equal(result.score,96);assert.ok(result.reviewed_at);assert.equal(result.code,body.code);f.DB.close();
+});
+test('return and resubmit preserve versions, reasons and old code',async()=>{
+  const f=await setup();let r=await f.call('/api/assignments/'+f.assignment.id+'/submit',submission(f),f.student.token);const first=r.body.submissions[0];
+  assert.equal((await f.call('/api/submissions/'+first.id+'/review',{decision:'returned',feedback:'短'},f.teacher.token)).status,400);
+  assert.equal((await f.call('/api/submissions/'+first.id+'/review',{decision:'returned',feedback:'请补充归档说明中的测试依据。'},f.teacher.token)).status,200);
+  const next=submission(f);next.code='function solve(a,b){ return b+a; }';next.evaluation.code=next.code;
+  r=await f.call('/api/assignments/'+f.assignment.id+'/submit',next,f.student.token);assert.equal(r.status,201);assert.equal(r.body.submissions.length,2);assert.equal(r.body.submissions[0].version,2);assert.equal(r.body.submissions[0].status,'pending');assert.equal(r.body.submissions[1].status,'returned');assert.notEqual(r.body.submissions[0].code,r.body.submissions[1].code);f.DB.close();
+});
+test('classroom isolation applies to teacher review and student submission',async()=>{
+  const f=await setup();const other=(await f.call('/api/classrooms',{teacherName:'其他教师',courseName:'另一个课堂'})).body;
+  assert.equal((await f.call('/api/assignments/'+f.assignment.id+'/close',{},other.token)).status,404);
+  const outsider=(await f.call('/api/classrooms/join',{code:other.room.code,name:'外班学生',studentNumber:'20260001'})).body;
+  assert.equal((await f.call('/api/assignments/'+f.assignment.id+'/submit',submission(f),outsider.token)).status,404);
+  const r=await f.call('/api/assignments/'+f.assignment.id+'/submit',submission(f),f.student.token),s=r.body.submissions[0];
+  assert.equal((await f.call('/api/submissions/'+s.id+'/review',{decision:'returned',feedback:'不应允许跨班操作'},other.token)).status,404);f.DB.close();
+});
+test('students see only their own code; teacher sees roster and submissions',async()=>{
+  const f=await setup();const second=(await f.call('/api/classrooms/join',{code:f.teacher.room.code,name:'学生乙',studentNumber:'20260002'})).body;
+  await f.call('/api/assignments/'+f.assignment.id+'/submit',submission(f),f.student.token);
+  assert.equal((await f.call('/api/session',null,second.token)).body.submissions.length,0);
+  const teacher=(await f.call('/api/session',null,f.teacher.token)).body;assert.equal(teacher.students.length,2);assert.equal(teacher.submissions.length,1);assert.ok(teacher.submissions[0].code);assert.ok(!JSON.stringify(teacher).includes('token_hash'));f.DB.close();
+});
+test('retries are idempotent, and pending work cannot be overwritten',async()=>{
+  const f=await setup(),body=submission(f),path='/api/assignments/'+f.assignment.id+'/submit';
+  const first=await f.call(path,body,f.student.token),second=await f.call(path,body,f.student.token);assert.equal(second.status,200);assert.equal(first.body.submissionId,second.body.submissionId);assert.equal(second.body.submissions.length,1);
+  assert.equal((await f.call(path,submission(f),f.student.token)).status,409);f.DB.close();
+});
+test('closed and overdue assignments reject new submissions',async()=>{
+  const f=await setup();assert.equal((await f.call('/api/assignments/'+f.assignment.id+'/close',{},f.teacher.token)).status,200);
+  assert.equal((await f.call('/api/assignments/'+f.assignment.id+'/submit',submission(f),f.student.token)).status,409);
+  assert.equal((await f.call('/api/assignments/'+f.assignment.id+'/reopen',{},f.teacher.token)).status,200);
+  await f.DB.prepare('UPDATE assignments SET due_at=? WHERE id=?').bind('2020-01-01T00:00:00.000Z',f.assignment.id).run();
+  assert.equal((await f.call('/api/assignments/'+f.assignment.id+'/submit',submission(f),f.student.token)).status,409);f.DB.close();
+});
+test('invalid or stale evaluation cannot be submitted',async()=>{
+  const f=await setup(),body=submission(f),path='/api/assignments/'+f.assignment.id+'/submit';body.evaluation.code='old code';assert.equal((await f.call(path,body,f.student.token)).status,400);
+  body.evaluation.code=body.code;body.evaluation.results[0].actual=999;assert.equal((await f.call(path,body,f.student.token)).status,400);f.DB.close();
+});
+test('anonymous callers cannot read a classroom or impersonate a role',async()=>{const f=fixture();assert.equal((await f.call('/api/session')).status,401);assert.equal((await f.call('/api/session',null,'0'.repeat(64))).status,401);f.DB.close();});
+test('review concurrency creates exactly one decision and audit event',async()=>{
+  const f=await setup(),r=await f.call('/api/assignments/'+f.assignment.id+'/submit',submission(f),f.student.token),s=r.body.submissions[0];const payload={decision:'verified',score:88,checkedCode:true,checkedMaterial:true};
+  const responses=await Promise.all([f.call('/api/submissions/'+s.id+'/review',payload,f.teacher.token),f.call('/api/submissions/'+s.id+'/review',payload,f.teacher.token)]);
+  assert.deepEqual(responses.map(r=>r.status).sort(),[200,409]);assert.equal((await f.DB.prepare('SELECT COUNT(*) AS n FROM review_events').first()).n,1);f.DB.close();
+});
+test('client material validation follows teacher task and current student',()=>{
+  const a={id:'task',title:'自定义作业',preset:'max',file_prefix:'MAX_02'},student={student_number:'ABC123'},room={course_name:'编程实践'};
+  const d=newDraft(a);assert.ok(studentErrors(d,a,room,student).length>0);d.code=PRESETS.max.solution;d.evaluation={passed:true,id:'EV-1',code:d.code};Object.assign(d,{filename:fileFor(a,student),attachment:{content:d.code},course:room.course_name,task:a.title,evaluationId:'EV-1',note:'本次已完成最大值函数与边界测试'});assert.deepEqual(studentErrors(d,a,room,student),[]);
+  d.code+='\n// change';assert.ok(studentErrors(d,a,room,student).some(e=>e.includes('当前代码')));
+});
