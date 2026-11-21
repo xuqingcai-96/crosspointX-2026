@@ -294,7 +294,6 @@ const english = {
   "· 交了没？": "· Did It Submit?",
   "工作空间": "workspace",
   "交了没？ · 双端教学事务平台": "Did It Submit? · Assignment submissions and peer review",
-  "独立赛事原型 · 非头歌官方产品": "Independent competition prototype",
   "事务办理": "Class services",
   "关闭弹窗": "Close dialog",
   "提交未完成": "Submission incomplete",

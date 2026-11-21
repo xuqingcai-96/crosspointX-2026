@@ -1,4 +1,5 @@
 import {PRESETS,validateAssignment,testsFor,fileFor} from '../dist/classroom.mjs';
+import {assistantStatus,answerAssistant} from './assistant.mjs';
 
 const json=(body,status=200)=>new Response(JSON.stringify(body),{status,headers:{'Content-Type':'application/json; charset=utf-8','Cache-Control':'no-store','X-Content-Type-Options':'nosniff'}});
 const fail=(message,status=400)=>Object.assign(new Error(message),{status});
@@ -141,6 +142,7 @@ export async function handleApi(request,env){
       if(origin&&origin!==url.origin)throw fail('不接受跨站写入。',403);
     }
     if(path==='/api/health')return json({ok:true,version:3});
+    if(path==='/api/assistant/status'&&request.method==='GET')return json(assistantStatus(env));
     if(path==='/api/classrooms'&&request.method==='POST'){
       const input=await payload(request),name=String(input.teacherName||'').trim(),course=String(input.courseName||'').trim();
       if(name.length<1||name.length>30||course.length<2||course.length>60)throw fail('请填写教师称呼（1–30 字）和课程名称（2–60 字）。');
@@ -160,6 +162,11 @@ export async function handleApi(request,env){
       return json({token,...await snapshot(db,{role:'student',room,student:await one(db,'SELECT * FROM students WHERE id = ?',studentId)})},201);
     }
     const session=await authorize(request,db);
+    if(path==='/api/assistant/chat'&&request.method==='POST'){
+      const input=await payload(request);
+      const assignment=input.assignmentId?await assignmentFor(db,session,String(input.assignmentId)):null;
+      return json(await answerAssistant(input,{userId:session.role+':'+(session.student?.id||session.room.id),role:session.role,assignment},env));
+    }
     if(path==='/api/session'&&request.method==='GET')return json(await snapshot(db,session));
     const peerMatch = path.match(/^\/api\/assignments\/([^/]+)\/peer-reviews(?:\/(start|save|submit))?$/);
     if (peerMatch) {

@@ -23,7 +23,7 @@ const server=http.createServer(async(req,res)=>{
       // Use an explicitly configured external origin behind TLS termination.
       // Do not trust arbitrary forwarded headers for the API's same-origin check.
       const request=new Request((publicOrigin||'http://'+req.headers.host)+req.url,{method:req.method,headers:req.headers,...(req.method==='POST'?{body:Buffer.concat(chunks)}:{})});
-      const response=await handleApi(request,{DB:db});res.writeHead(response.status,Object.fromEntries(response.headers));res.end(Buffer.from(await response.arrayBuffer()));return;
+      const response=await handleApi(request,{DB:db,DIFY_API_KEY:process.env.DIFY_API_KEY,DIFY_BASE_URL:process.env.DIFY_BASE_URL,AI_ENABLED:process.env.AI_ENABLED,AI_DAILY_LIMIT:process.env.AI_DAILY_LIMIT});res.writeHead(response.status,Object.fromEntries(response.headers));res.end(Buffer.from(await response.arrayBuffer()));return;
     }
     if(req.method!=='GET'&&req.method!=='HEAD'){res.writeHead(405);res.end();return;}
     if(pathname.startsWith('/server/')){res.writeHead(404);res.end();return;}

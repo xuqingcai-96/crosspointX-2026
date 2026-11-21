@@ -5,6 +5,10 @@ services:
     init: true
     environment:
       PUBLIC_ORIGIN: https://${DOMAIN:?Set DOMAIN in .env}
+      DIFY_API_KEY: ${DIFY_API_KEY:-}
+      DIFY_BASE_URL: ${DIFY_BASE_URL:-https://api.dify.ai/v1}
+      AI_ENABLED: ${AI_ENABLED:-true}
+      AI_DAILY_LIMIT: ${AI_DAILY_LIMIT:-100}
     expose:
       - "8080"
     volumes:

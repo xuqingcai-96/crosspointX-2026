@@ -1,0 +1,60 @@
+#assistant-root { position: relative; z-index: 40; }
+.assistant-launcher { position: fixed; right: 27px; bottom: 25px; display: flex; align-items: center; gap: 10px; min-height: 49px; padding: 13px 19px; border: 1px solid #42674e; border-radius: 15px; background: linear-gradient(145deg,#2e5f45,#1a4232); color: #f2f8e6; font-size: .875rem; font-weight: 600; box-shadow: 0 7px 22px #173f3526, inset 0 1px #ffffff1a; cursor: pointer; }
+.assistant-launcher:hover { background: #1c4d35; box-shadow: 0 9px 26px #173f3533; }
+.assistant-launcher svg { width: 22px; height: 22px; color: #d7f59a; }
+.assistant-panel { position: fixed; right: 27px; bottom: 88px; width: 390px; max-width: calc(100vw - 30px); max-height: min(660px,calc(100dvh - 115px)); display: flex; flex-direction: column; border: 1px solid #dce7d5; border-radius: 18px; background: #fff; box-shadow: 0 18px 65px #15362a26, 0 2px 8px #15362a0a; overflow: hidden; }
+.assistant-panel[hidden] { display: none; }
+.assistant-header { display: flex; align-items: center; gap: 12px; padding: 21px 21px 18px; background: linear-gradient(140deg,#f5f9ee,#fff); border-bottom: 1px solid #edf1e6; }
+.assistant-emblem { width: 38px; height: 41px; display: grid; place-items: center; border-radius: 11px; background: #e8f1dc; color: #6b8c43; border: 1px solid #deead0; flex-shrink: 0; }
+.assistant-emblem svg { width: 22px; height: 22px; }
+.assistant-heading { flex: 1; }
+.assistant-heading h2 { font-size: 1rem; color: #2c5137; }
+.assistant-heading p { font-size: .75rem; color: #7a8b6a; margin-top: 5px; }
+.assistant-icon-button { border: 0; background: transparent; color: #8a9c7a; font-size: 24px; width: 31px; height: 31px; border-radius: 7px; line-height: 1; }
+.assistant-icon-button:hover { background: #edf3e6; color: #4b6e36; }
+.assistant-mode { display: flex; justify-content: space-between; align-items: center; gap: 12px; padding: 12px 21px 5px; }
+.assistant-mode-label { display: inline-block; border-radius: 5px; background: #f4f5ee; border: 1px solid #e7e9dc; padding: 4px 7px; color: #7a8265; font-size: .6875rem; font-weight: 500; }
+.assistant-mode-label.connected { background: #edf5e7; color: #52783e; border-color: #dbe9d0; }
+.assistant-mode>button { padding: 5px 0; background: none; border: 0; color: #788d67; font-size: .75rem; }
+.assistant-scroll { min-height: 0; overflow-y: auto; overscroll-behavior: contain; padding: 12px 21px 18px; scrollbar-width: thin; scrollbar-color: #d3dfc8 transparent; }
+.assistant-intro { font-size: .8125rem; line-height: 1.85; color: #72835f; background: #f8faf3; border: 1px solid #e9efdd; border-radius: 9px; padding: 12px 13px; }
+.assistant-topics { display: flex; flex-wrap: wrap; gap: 7px; margin-top: 15px; }
+.assistant-topics button { border: 1px solid #dfe8d4; background: #fff; border-radius: 8px; padding: 8px 10px; color: #6d8654; font-size: .75rem; line-height: 1.55; text-align: left; }
+.assistant-topics button:hover { border-color: #acc88f; background: #f7fbef; }
+.assistant-topics button:disabled { opacity: .6; cursor: default; }
+.assistant-messages { margin-top: 22px; display: flex; flex-direction: column; gap: 17px; }
+.assistant-welcome { padding: 19px 10px 14px; text-align: center; color: #92a37e; }
+.assistant-welcome svg { width: 29px; height: 29px; opacity: .6; margin-bottom: 12px; }
+.assistant-welcome p { font-size: .8125rem; line-height: 1.8; }
+.assistant-message { max-width: 94%; min-width: 60%; }
+.assistant-message small { display: block; margin: 0 3px 6px; color: #8b9e77; font-size: .6875rem; }
+.assistant-message p { margin: 0; padding: 12px 14px; background: #f2f6ec; border: 1px solid #e7efdb; border-radius: 3px 12px 12px; color: #4e6a3d; font-size: .875rem; line-height: 1.9; white-space: pre-wrap; overflow-wrap: anywhere; }
+.assistant-message.from-user { align-self: flex-end; }
+.assistant-message.from-user small { text-align: right; }
+.assistant-message.from-user p { background: #2f583c; color: #edf7dc; border-color: #2f583c; border-radius: 12px 3px 12px 12px; }
+.assistant-message.chat-error p { color: #967340; background: #fcf8ed; border-color: #efe6cd; }
+.assistant-thinking { display: flex; gap: 4px; align-items: center; color: #82996b; font-size: .75rem; padding: 4px 2px; }
+.assistant-thinking span { height: 4px; width: 4px; border-radius: 50%; background: #a7bc8e; }
+.assistant-thinking span:last-of-type { margin-right: 6px; }
+.assistant-form { margin: 0; padding: 16px 21px 0; border-top: 1px solid #e8efdf; background: #fff; }
+.assistant-form textarea:not(#code-editor) { border-color: #dce7d0; border-radius: 10px; background: #fbfdf7; padding: 11px 12px; font-size: .875rem; line-height: 1.7; min-height: 70px; max-height: 130px; margin: 0; resize: vertical; }
+.assistant-send-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-top: 10px; }
+.assistant-send-row>span { font-size: .6875rem; color: #899c73; }
+.assistant-send-row>button { border: 1px solid #426c3c; border-radius: 7px; background: #426c3c; padding: 8px 16px; color: #f3f8e9; font-size: .8125rem; font-weight: 550; }
+.assistant-send-row>button:disabled { opacity: .45; cursor: not-allowed; }
+.assistant-footnote { margin: 0; padding: 11px 21px 17px; color: #8e9e7b; font-size: .6875rem; line-height: 1.7; }
+.assistant-sr { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+.assistant-heading p, .assistant-mode-label, .assistant-mode>button,
+.assistant-welcome, .assistant-message small, .assistant-send-row>span,
+.assistant-footnote { color: #657558; font-size: .75rem; }
+.assistant-intro { color: #607158; }
+.assistant-topics button { color: #536d44; }
+@media(max-width:700px) {
+  .assistant-launcher { right: 17px; bottom: 17px; min-height: 45px; padding: 11px 14px; border-radius: 12px; font-size: .8125rem; }
+  .assistant-panel { right: 13px; bottom: 76px; max-height: calc(100dvh - 96px); width: calc(100% - 26px); max-width: 390px; border-radius: 15px; }
+  .assistant-header { padding: 17px 18px 15px; }
+  .assistant-scroll { padding-left: 17px; padding-right: 17px; }
+  .assistant-mode { padding-left: 18px; padding-right: 18px; }
+  .assistant-form { padding: 14px 17px 0; }
+  .assistant-footnote { padding: 10px 17px 14px; }
+}

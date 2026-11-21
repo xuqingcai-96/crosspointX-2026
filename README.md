@@ -8,6 +8,8 @@
 
 美化前版本保留在 Git 标签 `baseline-bilingual-no-design`。界面精修位于 `codex/ui-polish`，独立的 `dist/polish.css` 统一导航、卡片、表单、代码区和移动布局；师生与互评流程保持原样。
 
+右下角新增“问一问”：未配置模型时提供明确标注的内置操作帮助，配置 Dify 后可使用 AI 问答。详见[接入说明](deployment/ASSISTANT.md)。API Key 仅保存在服务端；本版尚未配置真实模型。页脚已移除赛事原型与平台隶属提示文案。
+
 部分网络会遇到 chatgpt.site 平台入口的 Cloudflare 403。已准备无需该域名的[独立部署方案](deployment/MIGRATION.md)，包括 Render 配置、Docker/HTTPS 配置和持久化数据库；新地址尚未创建。
 
 ## 师生操作
