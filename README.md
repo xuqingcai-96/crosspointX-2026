@@ -4,6 +4,8 @@
 
 在线地址：https://did-it-submit.xuqingcai96.workers.dev
 
+新增教师专用隐藏路演重置：教师登录后使用 `Alt+Shift+R`，或打开 `?demo=1` 后从「课堂与身份 → 路演重置」进入。一键保留四个身份，甲丙已交、95/93 分已保存未发布，乙未提交供现场编程；旧记录归档，其他同学不受影响。详见 [路演重置说明](deployment/DEMO.md)。
+
 原 Sites 地址保留：https://course-not-submitted-ux.xuqingcai96.chatgpt.site 。两站数据库独立，旧课堂不会自动出现在新站。
 
 本版以用户提供的 `did-it-submit-bilingual-source (4).zip` 为基线，保留中英双语与同伴互评，移除首页及师生端的设计说明、演示路线和示例答案弹窗。

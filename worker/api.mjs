@@ -1,5 +1,6 @@
 import {PRESETS,validateAssignment,testsFor,fileFor} from '../dist/classroom.mjs';
 import {assistantStatus,answerAssistant} from './assistant.mjs';
+import {demoInfo,resetDemo} from './demo.mjs';
 
 const json=(body,status=200)=>new Response(JSON.stringify(body),{status,headers:{'Content-Type':'application/json; charset=utf-8','Cache-Control':'no-store','X-Content-Type-Options':'nosniff'}});
 const fail=(message,status=400)=>Object.assign(new Error(message),{status});
@@ -39,7 +40,7 @@ async function assignmentFor(db,session,assignmentId){
   return assignment;
 }
 async function peerReviewState(db, assignmentId, studentId) {
-  const own = await one(db, 'SELECT 1 AS submitted FROM submissions WHERE assignment_id = ? AND student_id = ? LIMIT 1', assignmentId, studentId);
+  const own = await one(db, 'SELECT 1 AS submitted FROM submissions WHERE demo_archived=0 AND assignment_id = ? AND student_id = ? LIMIT 1', assignmentId, studentId);
   if (!own) return {status: 'locked', submittedCount: 0, reviews: []};
 
   const set = await one(db, `SELECT p.first_review, p.second_review, p.submitted_at,
@@ -60,9 +61,9 @@ async function peerReviewState(db, assignmentId, studentId) {
   }
 
   const available = await one(db, `SELECT COUNT(*) AS count FROM submissions s
-    WHERE s.assignment_id = ? AND s.student_id <> ? AND s.status <> 'returned'
+    WHERE s.demo_archived=0 AND s.assignment_id = ? AND s.student_id <> ? AND s.status <> 'returned'
       AND s.version = (SELECT MAX(latest.version) FROM submissions latest
-        WHERE latest.assignment_id = s.assignment_id AND latest.student_id = s.student_id)`, assignmentId, studentId);
+        WHERE latest.demo_archived=0 AND latest.assignment_id = s.assignment_id AND latest.student_id = s.student_id)`, assignmentId, studentId);
   return {status: available.count >= 2 ? 'ready' : 'waiting', submittedCount: 0, reviews: []};
 }
 async function handlePeerReview(request, db, session, assignment, action) {
@@ -79,9 +80,9 @@ async function handlePeerReview(request, db, session, assignment, action) {
     await exec(db, `INSERT INTO peer_review_sets (assignment_id, reviewer_id, first_submission_id, second_submission_id)
       SELECT ?, ?, MIN(candidate.id), MAX(candidate.id) FROM (
         SELECT s.id FROM submissions s
-        WHERE s.assignment_id = ? AND s.student_id <> ? AND s.status <> 'returned'
+        WHERE s.demo_archived=0 AND s.assignment_id = ? AND s.student_id <> ? AND s.status <> 'returned'
           AND s.version = (SELECT MAX(latest.version) FROM submissions latest
-            WHERE latest.assignment_id = s.assignment_id AND latest.student_id = s.student_id)
+            WHERE latest.demo_archived=0 AND latest.assignment_id = s.assignment_id AND latest.student_id = s.student_id)
         ORDER BY RANDOM() LIMIT 2
       ) candidate HAVING COUNT(*) = 2
       ON CONFLICT(assignment_id, reviewer_id) DO NOTHING`, ...key, ...key);
@@ -122,7 +123,7 @@ async function snapshot(db,session){
   const assignments=await rows(db,"SELECT * FROM assignments WHERE classroom_id = ? AND (? = 'teacher' OR status <> 'draft') ORDER BY created_at DESC",room.id,role);
   const submissions=await rows(db,`SELECT s.*, st.name AS student_name, st.student_number, a.title AS assignment_title
     FROM submissions s JOIN assignments a ON a.id = s.assignment_id JOIN students st ON st.id = s.student_id
-    WHERE a.classroom_id = ? AND (? = 'teacher' OR s.student_id = ?) ORDER BY s.submitted_at DESC`,room.id,role,student?.id||'');
+    WHERE s.demo_archived=0 AND a.classroom_id = ? AND (? = 'teacher' OR s.student_id = ?) ORDER BY s.submitted_at DESC`,room.id,role,student?.id||'');
   const students=role==='teacher'?await rows(db,'SELECT id,name,student_number,created_at FROM students WHERE classroom_id = ? ORDER BY created_at',room.id):[];
   for(const submission of submissions){
     submission.evaluation=JSON.parse(submission.evaluation_json);delete submission.evaluation_json;
@@ -130,7 +131,7 @@ async function snapshot(db,session){
     submission.grade_published=submission.status==='verified'&&(submission.grade_release_required===0||!!submission.grade_published_at);
     if(role==='student'&&submission.status==='verified'&&!submission.grade_published){submission.score=null;submission.feedback='';}
   }
-  return {room:roomView(room),role,student:student?{id:student.id,name:student.name,student_number:student.student_number}:null,assignments,submissions,students,serverTime:new Date().toISOString()};
+  return {room:roomView(room),role,student:student?{id:student.id,name:student.name,student_number:student.student_number}:null,assignments,submissions,students,demo:await demoInfo(db,session),serverTime:new Date().toISOString()};
 }
 export async function handleApi(request,env){
   try{
@@ -162,6 +163,16 @@ export async function handleApi(request,env){
       return json({token,...await snapshot(db,{role:'student',room,student:await one(db,'SELECT * FROM students WHERE id = ?',studentId)})},201);
     }
     const session=await authorize(request,db);
+    if(path==='/api/demo/reset'&&request.method==='POST'){
+      const input=await payload(request);
+      if(input.confirm!==true)throw fail('请明确选择恢复路演开场。');
+      await resetDemo(db,session);
+      return json(await snapshot(db,session));
+    }
+    if(request.method==='POST'){
+      const info=await demoInfo(db,session);
+      if(info?.generation){const input=await payload(request.clone());if(input.demoGeneration!==info.generation)return json({error:'教师已恢复路演开场，旧操作已停止。请刷新后重新操作。',resetRequired:true},409);}
+    }
     if(path==='/api/assistant/chat'&&request.method==='POST'){
       const input=await payload(request);
       const assignment=input.assignmentId?await assignmentFor(db,session,String(input.assignmentId)):null;
@@ -195,9 +206,9 @@ export async function handleApi(request,env){
       const assignment=await assignmentFor(db,session,submitMatch[1]),input=await payload(request);
       if(assignment.status!=='published'||(assignment.due_at&&Date.parse(assignment.due_at)<Date.now()))throw fail('该作业已关闭或已截止，无法提交。',409);
       if(typeof input.nonce!=='string'||!/^[a-zA-Z0-9-]{16,64}$/.test(input.nonce))throw fail('缺少有效的提交请求编号。');
-      const duplicate=await one(db,'SELECT id FROM submissions WHERE student_id = ? AND nonce = ?',session.student.id,input.nonce);
+      const duplicate=await one(db,'SELECT id FROM submissions WHERE demo_archived=0 AND student_id = ? AND nonce = ?',session.student.id,input.nonce);
       if(duplicate)return json({submissionId:duplicate.id,...await snapshot(db,session)});
-      const latest=await one(db,'SELECT * FROM submissions WHERE assignment_id = ? AND student_id = ? ORDER BY version DESC LIMIT 1',assignment.id,session.student.id);
+      const latest=await one(db,'SELECT * FROM submissions WHERE demo_archived=0 AND assignment_id = ? AND student_id = ? ORDER BY version DESC LIMIT 1',assignment.id,session.student.id);
       if(latest&&latest.status!=='returned')throw fail('本次作业已提交，教师退回后才可以重新提交。',409);
       const code=String(input.code||''),note=String(input.note||'').trim(),evaluation=input.evaluation;
       if(!code.trim()||new TextEncoder().encode(code).length>32768)throw fail('请提供有效代码（不超过 32 KB）。');
@@ -211,7 +222,7 @@ export async function handleApi(request,env){
       if(!Array.isArray(evaluation.results)||evaluation.results.length!==expectedTests.length||!evaluation.results.every((r,i)=>r.passed===true&&r.actual===expectedTests[i].expected))throw fail('请先通过当前作业的全部评测用例。');
       // The browser evaluation is supporting evidence. Only teacher review creates a final score.
       const evidence={id:evaluation.id,passed:true,results:evaluation.results.map((r,i)=>({...expectedTests[i],actual:r.actual,passed:true})),code};
-      const submissionId=id('SUB'),version=(latest?.version||0)+1;
+      const submissionId=id('SUB'),previousVersion=await one(db,'SELECT COALESCE(MAX(version),0) AS version FROM submissions WHERE assignment_id=? AND student_id=?',assignment.id,session.student.id),version=previousVersion.version+1;
       try{await exec(db,"INSERT INTO submissions (id,assignment_id,student_id,version,nonce,code,filename,note,evaluation_json,status,submitted_at,grade_release_required) VALUES (?,?,?,?,?,?,?,?,?,'pending',?,1)",submissionId,assignment.id,session.student.id,version,input.nonce,code,expectedFilename,note,JSON.stringify(evidence),new Date().toISOString());}
       catch(error){if(String(error).includes('UNIQUE'))throw fail('提交状态已改变，请刷新查看最新记录。',409);throw error;}
       return json({submissionId,...await snapshot(db,session)},201);
@@ -219,7 +230,7 @@ export async function handleApi(request,env){
     const reviewMatch=path.match(/^\/api\/submissions\/([^/]+)\/review$/);
     if(reviewMatch&&request.method==='POST'){
       requireTeacher(session);const input=await payload(request);
-      const submission=await one(db,'SELECT s.* FROM submissions s JOIN assignments a ON a.id = s.assignment_id WHERE s.id = ? AND a.classroom_id = ?',reviewMatch[1],session.room.id);
+      const submission=await one(db,'SELECT s.* FROM submissions s JOIN assignments a ON a.id = s.assignment_id WHERE s.demo_archived=0 AND s.id = ? AND a.classroom_id = ?',reviewMatch[1],session.room.id);
       if(!submission)throw fail('找不到本课堂的提交。',404);
       if(submission.status!=='pending')throw fail('这份提交已经核实，请刷新查看状态。',409);
       if(!['verified','returned'].includes(input.decision))throw fail('请选择核实通过或退回。');
@@ -239,7 +250,7 @@ export async function handleApi(request,env){
     const releaseMatch=path.match(/^\/api\/submissions\/([^/]+)\/publish-grade$/);
     if(releaseMatch&&request.method==='POST'){
       requireTeacher(session);const input=await payload(request);
-      const submission=await one(db,'SELECT s.* FROM submissions s JOIN assignments a ON a.id=s.assignment_id WHERE s.id=? AND a.classroom_id=?',releaseMatch[1],session.room.id);
+      const submission=await one(db,'SELECT s.* FROM submissions s JOIN assignments a ON a.id=s.assignment_id WHERE s.demo_archived=0 AND s.id=? AND a.classroom_id=?',releaseMatch[1],session.room.id);
       if(!submission)throw fail('找不到本课堂的提交。',404);
       if(input.confirm!==true)throw fail('请勾选本条成绩的发布确认后再发布。');
       if(submission.status!=='verified')throw fail('请先核实通过该提交，再发布本条成绩。',409);

@@ -1,14 +1,15 @@
 import {readFile,writeFile,mkdir} from 'node:fs/promises';
 import path from 'node:path';
 const root=new URL('../',import.meta.url);
-const files=['index.html','app.js','styles.css','polish.css','assistant.mjs','assistant.css','help.mjs','i18n.mjs','core.mjs','classroom.mjs','runner.worker.js','favicon.svg'];
+const files=['index.html','app.js','styles.css','polish.css','assistant.mjs','assistant.css','help.mjs','demo-state.mjs','i18n.mjs','core.mjs','classroom.mjs','runner.worker.js','favicon.svg'];
 const assets={};
 const mime={html:'text/html; charset=utf-8',js:'text/javascript; charset=utf-8',mjs:'text/javascript; charset=utf-8',css:'text/css; charset=utf-8',svg:'image/svg+xml'};
 for(const file of files)assets['/'+file]={body:await readFile(new URL('dist/'+file,root),'utf8'),type:mime[file.split('.').pop()]};
 const shared=(await readFile(new URL('dist/classroom.mjs',root),'utf8')).replace(/^export /gm,'');
 const guide=(await readFile(new URL('dist/help.mjs',root),'utf8')).replace(/^export /gm,'');
 const assistant=(await readFile(new URL('worker/assistant.mjs',root),'utf8')).replace(/^import .*?;\r?\n/gm,'').replace(/^export /gm,'');
+const demo=(await readFile(new URL('worker/demo.mjs',root),'utf8')).replace(/^import .*?;\r?\n/gm,'').replace(/^export /gm,'');
 const api=(await readFile(new URL('worker/api.mjs',root),'utf8')).replace(/^import .*?;\r?\n/gm,'').replace(/^export /gm,'');
-const entry=`${guide}\n${assistant}\n${shared}\n${api}\nconst ASSETS=${JSON.stringify(assets)};\nexport default {async fetch(request,env){const url=new URL(request.url);if(url.pathname.startsWith('/api/'))return handleApi(request,env);if(request.method!=='GET'&&request.method!=='HEAD')return new Response('Method not allowed',{status:405});const asset=ASSETS[url.pathname==='/'?'/index.html':url.pathname];if(!asset)return new Response('Not found',{status:404});return new Response(request.method==='HEAD'?null:asset.body,{headers:{'Content-Type':asset.type,'Cache-Control':'no-cache','X-Content-Type-Options':'nosniff','Referrer-Policy':'same-origin'}});}};\n`;
+const entry=`${guide}\n${assistant}\n${shared}\n${demo}\n${api}\nconst ASSETS=${JSON.stringify(assets)};\nexport default {async fetch(request,env){const url=new URL(request.url);if(url.pathname.startsWith('/api/'))return handleApi(request,env);if(request.method!=='GET'&&request.method!=='HEAD')return new Response('Method not allowed',{status:405});const asset=ASSETS[url.pathname==='/'?'/index.html':url.pathname];if(!asset)return new Response('Not found',{status:404});return new Response(request.method==='HEAD'?null:asset.body,{headers:{'Content-Type':asset.type,'Cache-Control':'no-cache','X-Content-Type-Options':'nosniff','Referrer-Policy':'same-origin'}});}};\n`;
 await mkdir(new URL('dist/server/',root),{recursive:true});await writeFile(new URL('dist/server/index.js',root),entry);
 console.log('Built self-contained Worker with classroom API and '+files.length+' assets.');
